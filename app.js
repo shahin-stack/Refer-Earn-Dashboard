@@ -1199,7 +1199,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             ['New Customers',    d.new_count,    d.new_pct    + '%'],
             ['Total Participants', d.total_participants, '100%'],
             [],
-            ['Note: Repeat = present in pre-programme base (total data.db). New = first-time buyers via R&E.', '', ''],
+            ['Note: Repeat = made a purchase before August 1, 2026. New = no purchase record before August 1, 2026.', '', ''],
             ['Pre-programme base size', d.base_size, '']
         ];
 
@@ -1238,15 +1238,15 @@ document.addEventListener('DOMContentLoaded', async function () {
         XLSX.writeFile(wb, `Customer_Classification_${dateStr}.xlsx`);
     });
 
-    // ─── Lazy-load classification when its tab is clicked ────────────────────
-    let classificationLoaded = false;
+    // ─── Reload classification every time its tab is clicked ────────────────
     document.querySelectorAll('.tab-link').forEach(link => {
         link.addEventListener('click', () => {
-            if (link.getAttribute('data-target') === 'customerClassificationSection' && !classificationLoaded) {
-                classificationLoaded = true;
+            if (link.getAttribute('data-target') === 'customerClassificationSection') {
                 loadCustomerClassification();
             }
         });
     });
-});
 
+    // Also load immediately on page load so data is ready
+    loadCustomerClassification();
+});
