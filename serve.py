@@ -167,27 +167,54 @@ def daily_customer_trend():
     start_date = request.args.get('start', '')
     end_date   = request.args.get('end', '')
 
-    # Use sheets connector (auto-falls back to DB)
-    df = get_all_members_df()
-    if 'START_DATE' in df.columns:
-        df['date'] = df['START_DATE'].astype(str).str[:10]
-    elif 'start_date' in df.columns:
-        df['date'] = df['start_date'].astype(str).str[:10]
-    else:
-        return jsonify({'labels': [], 'data': []})
+    try:
+        client = get_ch_client()
 
-    if start_date and end_date:
-        df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+        date_filter = ""
+        if start_date and end_date:
+            date_filter = f"WHERE start_date >= '{start_date}' AND start_date <= '{end_date}'"
 
-    mob_col = 'MOBILE_NUMBER' if 'MOBILE_NUMBER' in df.columns else 'Mobile'
-    trend = df.groupby('date')[mob_col].nunique().reset_index()
-    trend.columns = ['date', 'count']
-    trend = trend.sort_values('date')
+        query = f"""
+            SELECT
+                start_date as date,
+                count(distinct if(
+                    endsWith(customer_mobile_number, '.0'),
+                    substr(customer_mobile_number, 1, length(customer_mobile_number) - 2),
+                    customer_mobile_number
+                )) as unique_customers
+            FROM refer_point_data
+            {date_filter}
+            GROUP BY start_date
+            ORDER BY start_date ASC
+        """
+        result = client.query(query)
+        labels = [str(row[0]) for row in result.result_rows]
+        data   = [int(row[1]) for row in result.result_rows]
+        return jsonify({'labels': labels, 'data': data})
 
-    return jsonify({
-        'labels': trend['date'].tolist(),
-        'data':   trend['count'].tolist()
-    })
+    except Exception as e:
+        print("daily-customer-trend error:", e)
+        # Fallback to Google Sheets / monthly.db
+        try:
+            df = get_all_members_df()
+            if 'START_DATE' in df.columns:
+                df['date'] = df['START_DATE'].astype(str).str[:10]
+            elif 'start_date' in df.columns:
+                df['date'] = df['start_date'].astype(str).str[:10]
+            else:
+                return jsonify({'labels': [], 'data': []})
+
+            if start_date and end_date:
+                df = df[(df['date'] >= start_date) & (df['date'] <= end_date)]
+
+            mob_col = 'MOBILE_NUMBER' if 'MOBILE_NUMBER' in df.columns else 'Mobile'
+            trend = df.groupby('date')[mob_col].nunique().reset_index()
+            trend.columns = ['date', 'count']
+            trend = trend.sort_values('date')
+            return jsonify({'labels': trend['date'].tolist(), 'data': trend['count'].tolist()})
+        except Exception as e2:
+            print("Fallback trend error:", e2)
+            return jsonify({'labels': [], 'data': []})
 
 @app.route('/api/age-report')
 def age_report():
