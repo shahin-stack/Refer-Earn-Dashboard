@@ -492,34 +492,56 @@ def anniversary_month_export():
             return jsonify({'error': str(e2)}), 500
 _BASE_MOBILES_CACHE = None
 
+# ── Cutoff date: Repeat = purchased before Aug 1 2026, New = did NOT ──────────
+REPEAT_CUTOFF_DATE = '2026-07-31'   # sales_data parsed_date <= this → base/repeat
+NEW_FROM_DATE      = '2026-08-01'   # new customers joined from this date onwards
+
+def _normalize_mob_expr(col):
+    """ClickHouse expression to strip trailing .0 from mobile numbers."""
+    return f"if(endsWith({col}, '.0'), substr({col}, 1, length({col})-2), {col})"
+
 @app.route('/api/customer-classification')
 def customer_classification():
     """
-    Classify Refer & Earn participants (monthly.db → r_f_monthly_OG) into:
-      - Repeat Customers : mobile present in total data.db (pre-program base)
-      - New Customers    : mobile NOT present in total data.db
-    Matching is done on normalised mobile string to avoid float duplicates.
+    Classify R&E participants into Repeat vs New using ClickHouse:
+
+    Base (Repeat) = mobiles that appear in sales_data with parsed_date <= 2026-07-31
+    New           = R&E participants NOT in that base set
     """
     try:
-        # 1. Base customer mobiles (Google Sheets or total data.db)
-        base_mobiles = get_base_customers_set()
+        client = get_ch_client()
 
-        # 2. R&E participants (Google Sheets or monthly.db)
-        members_df = get_all_members_df()
-        mob_col = 'MOBILE_NUMBER' if 'MOBILE_NUMBER' in members_df.columns else 'Mobile'
-        members_df['mob'] = members_df[mob_col].astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
-        monthly_mobiles = set(members_df['mob'].dropna().tolist())
-        for noise in ('None', 'nan', ''):
-            monthly_mobiles.discard(noise)
+        query = f"""
+            WITH
+            -- Step 1: Pre-program base mobiles (sales_data up to July 31 2026)
+            base AS (
+                SELECT DISTINCT {_normalize_mob_expr('customer_mobile')} AS mob
+                FROM sales_data
+                WHERE parsed_date <= '{REPEAT_CUTOFF_DATE}'
+                  AND customer_mobile != ''
+            ),
+            -- Step 2: All R&E participants
+            re_participants AS (
+                SELECT DISTINCT {_normalize_mob_expr('customer_mobile_number')} AS mob
+                FROM refer_point_data
+                WHERE customer_mobile_number != ''
+            )
+            -- Step 3: Classify
+            SELECT
+                count()                                              AS total_participants,
+                countIf(mob IN (SELECT mob FROM base))              AS repeat_count,
+                countIf(mob NOT IN (SELECT mob FROM base))          AS new_count,
+                (SELECT count() FROM base)                          AS base_size
+            FROM re_participants
+        """
+        row = client.query(query).result_rows[0]
+        total_participants = int(row[0])
+        repeat_count       = int(row[1])
+        new_count          = int(row[2])
+        base_size          = int(row[3])
 
-        # 3. Classify
-        repeat_mobiles = monthly_mobiles & base_mobiles
-        new_mobiles    = monthly_mobiles - base_mobiles
-        total_participants = len(monthly_mobiles)
-        repeat_count = len(repeat_mobiles)
-        new_count    = len(new_mobiles)
-        repeat_pct = round((repeat_count / total_participants * 100), 2) if total_participants else 0
-        new_pct    = round((new_count    / total_participants * 100), 2) if total_participants else 0
+        repeat_pct = round(repeat_count / total_participants * 100, 2) if total_participants else 0
+        new_pct    = round(new_count    / total_participants * 100, 2) if total_participants else 0
 
         return jsonify({
             'total_participants': total_participants,
@@ -527,7 +549,7 @@ def customer_classification():
             'new_count':          new_count,
             'repeat_pct':         repeat_pct,
             'new_pct':            new_pct,
-            'base_size':          len(base_mobiles)
+            'base_size':          base_size
         })
     except Exception as e:
         import traceback
@@ -538,160 +560,106 @@ def customer_classification():
 @app.route('/api/new-customer-metrics')
 def new_customer_metrics():
     """
-    Calculate the Core Performance Metrics but restricted ONLY to New Customers
-    (mobiles in monthly.db but not in total data.db).
+    Core Performance Metrics restricted to NEW customers only.
+
+    New Customer = in refer_point_data BUT NOT in sales_data before 2026-08-01
+    Sales range  = filtered by the date picker (default: Jan 2026 onwards)
     """
-    global _BASE_MOBILES_CACHE
     start_date = request.args.get('start', '')
     end_date   = request.args.get('end', '')
 
-    is_full_range = False
-    date_list = []
-    if not start_date or not end_date:
-        is_full_range = True
-    else:
+    is_full_range = not (start_date and end_date)
+
+    # Build sales date filter
+    sales_date_filter = "parsed_date >= '2026-01-01'"
+    ref_date_filter   = ""
+    if not is_full_range:
         try:
-            dr = pd.date_range(start=start_date, end=end_date)
-            date_list = [d.strftime('%d-%m-%Y') for d in dr]
-            if not date_list:
-                return jsonify({"error": "No dates in range"}), 400
+            from datetime import datetime
+            sd = datetime.strptime(start_date, '%Y-%m-%d').strftime('%Y-%m-%d')
+            ed = datetime.strptime(end_date,   '%Y-%m-%d').strftime('%Y-%m-%d')
+            sales_date_filter += f" AND parsed_date >= '{sd}' AND parsed_date <= '{ed}'"
+            ref_date_filter    = f"AND start_date >= '{sd}' AND start_date <= '{ed}'"
         except Exception:
-            return jsonify({"error": "Invalid date format"}), 400
+            return jsonify({'error': 'Invalid date format'}), 400
 
     try:
-        if _BASE_MOBILES_CACHE is None:
-            conn_total = sqlite3.connect('total data.db')
-            total_tables = conn_total.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
+        client = get_ch_client()
 
-            base_mobiles = set()
-            for (tname,) in total_tables:
-                df = pd.read_sql(f'SELECT * FROM "{tname}"', conn_total)
-                if not df.empty:
-                    col_name = str(df.columns[0]).strip()
-                    if col_name.endswith('.0'): col_name = col_name[:-2]
-                    if col_name and col_name not in ('None', 'nan'):
-                        base_mobiles.add(col_name)
-
-                    mobs = df.iloc[:, 0].dropna().astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
-                    base_mobiles.update(mobs.tolist())
-                    
-            conn_total.close()
-            
-            for noise in ('None', 'nan', ''):
-                if noise in base_mobiles:
-                    base_mobiles.remove(noise)
-                    
-            _BASE_MOBILES_CACHE = base_mobiles
-
-        base_mobiles = _BASE_MOBILES_CACHE
-
-        conn_mon = get_db_connection('monthly.db')
-        if is_full_range:
-            master_df = pd.read_sql("SELECT [MOBILE_NUMBER] as Mobile, [BONUS_POINTS] as [Sum of Point] FROM r_f_monthly_OG", conn_mon)
-        else:
-            master_df = pd.read_sql(
-                "SELECT [MOBILE_NUMBER] as Mobile, [BONUS_POINTS] as [Sum of Point] FROM r_f_monthly_OG WHERE SUBSTR(START_DATE, 1, 10) >= ? AND SUBSTR(START_DATE, 1, 10) <= ?",
-                conn_mon, params=(start_date, end_date)
+        # ── Step 1: Master stats for New Customers ─────────────────────────
+        # New = in refer_point_data BUT NOT in sales_data before Aug 1 2026
+        master_query = f"""
+            WITH base AS (
+                SELECT DISTINCT {_normalize_mob_expr('customer_mobile')} AS mob
+                FROM sales_data
+                WHERE parsed_date <= '{REPEAT_CUTOFF_DATE}'
+                  AND customer_mobile != ''
             )
-            
-        valid_members_df = pd.read_sql("SELECT [MOBILE_NUMBER] as Mobile FROM r_f_monthly_OG", conn_mon)
-        conn_mon.close()
-        
-        master_df['mob'] = master_df['Mobile'].astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
-        
-        monthly_mobiles = set(master_df['mob'].dropna().tolist())
-        for noise in ('None', 'nan', ''):
-            if noise in monthly_mobiles:
-                monthly_mobiles.remove(noise)
-                
-        valid_members_df['mob'] = valid_members_df['Mobile'].astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
-        all_monthly_mobiles = set(valid_members_df['mob'].dropna().tolist())
-        for noise in ('None', 'nan', ''):
-            if noise in all_monthly_mobiles:
-                all_monthly_mobiles.remove(noise)
-
-        # ------------------------------------------------------------------
-        # NEW CUSTOMERS SET
-        # ------------------------------------------------------------------
-        new_mobiles = monthly_mobiles - base_mobiles
-        all_new_mobiles = all_monthly_mobiles - base_mobiles
-
-        master_df_new = master_df[master_df['mob'].isin(new_mobiles)]
-        nc_total_customer_count = len(new_mobiles)
-        nc_total_bonus_point_given = float(pd.to_numeric(master_df_new['Sum of Point'], errors='coerce').fillna(0).sum())
-
-        conn_det = get_db_connection('detailed_split.db')
-        tables_res = conn_det.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall()
-        tables = [r[0] for r in tables_res if r[0] != 'sqlite_sequence']
-
-        queries = []
-        params = []
-        for t in tables:
-            if is_full_range:
-                q = f'SELECT [Date], [Customer Mobile], [Total Value], [POINT REDUMPTION (DEDUCTION)] FROM "{t}"'
-            else:
-                placeholders = ','.join(['?'] * len(date_list))
-                q = f'SELECT [Date], [Customer Mobile], [Total Value], [POINT REDUMPTION (DEDUCTION)] FROM "{t}" WHERE [Date] IN ({placeholders})'
-                params.extend(date_list)
-            queries.append(q)
-
-        if queries:
-            query = " UNION ALL ".join(queries)
-            df = pd.read_sql(query, conn_det, params=params)
-        else:
-            df = pd.DataFrame()
-        conn_det.close()
-
-        if not df.empty:
-            df['POINT REDUMPTION (DEDUCTION)'] = (
-                pd.to_numeric(df['POINT REDUMPTION (DEDUCTION)'], errors='coerce').fillna(0).abs()
+            SELECT
+                count(DISTINCT mob)  AS nc_customer_count,
+                sum(bonus_points)    AS nc_bonus_points
+            FROM (
+                SELECT
+                    {_normalize_mob_expr('customer_mobile_number')} AS mob,
+                    bonus_points
+                FROM refer_point_data
+                WHERE customer_mobile_number != '' {ref_date_filter}
             )
-            df['Total Value'] = pd.to_numeric(df['Total Value'], errors='coerce').fillna(0)
-            df['mob'] = df['Customer Mobile'].astype(str).str.strip().str.replace(r'\.0$', '', regex=True)
-            
-            # Filter the detailed data to ONLY new mobiles
-            df = df[df['mob'].isin(all_new_mobiles)]
-        else:
-            df = pd.DataFrame(columns=['Date', 'Customer Mobile', 'Total Value', 'POINT REDUMPTION (DEDUCTION)', 'mob'])
+            WHERE mob NOT IN (SELECT mob FROM base)
+        """
+        m = client.query(master_query).result_rows[0]
+        nc_total_customer_count    = int(m[0])
+        nc_total_bonus_point_given = float(m[1]) if m[1] else 0.0
 
-        if df.empty:
-            return jsonify({
-                "master_stats": {
-                    "total_customer_count": nc_total_customer_count,
-                    "total_bonus_point_given": nc_total_bonus_point_given
-                },
-                "range_stats": {
-                    "purchase_count": 0, "redeemed_count": 0, "point_redeemed_value": 0,
-                    "redeemed_purchase_value": 0, "loyalty_discount_pct": 0,
-                    "avg_purchase_value": 0, "avg_loyalty_redemption": 0
-                },
-                "is_full_range": is_full_range
-            })
-
-        nc_purchase_count = int(df['mob'].nunique())
-
-        df_red = df[df['POINT REDUMPTION (DEDUCTION)'] > 0]
-        nc_redeemed_count = int(df_red['mob'].nunique())
-        nc_point_redeemed = float(df_red['POINT REDUMPTION (DEDUCTION)'].sum())
-
-        redeemed_mobs = set(df_red['mob'].tolist())
-        df_redeemers_all = df[df['mob'].isin(redeemed_mobs)]
-        nc_redeemed_purch_v = float(df_redeemers_all['Total Value'].sum())
+        # ── Step 2: Sales metrics for New Customers ────────────────────────
+        range_query = f"""
+            WITH base AS (
+                SELECT DISTINCT {_normalize_mob_expr('customer_mobile')} AS mob
+                FROM sales_data
+                WHERE parsed_date <= '{REPEAT_CUTOFF_DATE}'
+                  AND customer_mobile != ''
+            ),
+            re_new AS (
+                SELECT DISTINCT {_normalize_mob_expr('customer_mobile_number')} AS mob
+                FROM refer_point_data
+                WHERE customer_mobile_number != ''
+                  AND mob NOT IN (SELECT mob FROM base)
+            ),
+            valid_sales AS (
+                SELECT
+                    {_normalize_mob_expr('customer_mobile')} AS mob,
+                    total_value,
+                    abs(toFloat64OrZero(point_redemption)) AS redemption
+                FROM sales_data
+                WHERE {sales_date_filter}
+                  AND {_normalize_mob_expr('customer_mobile')} IN (SELECT mob FROM re_new)
+            ),
+            redeemers AS (
+                SELECT DISTINCT mob FROM valid_sales WHERE redemption > 0
+            )
+            SELECT
+                count(DISTINCT mob)                                                            AS purchase_count,
+                (SELECT count() FROM redeemers)                                                AS redeemed_count,
+                sum(redemption)                                                                AS point_redeemed_value,
+                (SELECT sum(total_value) FROM valid_sales WHERE mob IN (SELECT mob FROM redeemers)) AS redeemed_purchase_value
+            FROM valid_sales
+        """
+        r = client.query(range_query).result_rows[0]
+        nc_purchase_count    = int(r[0])   if r[0] else 0
+        nc_redeemed_count    = int(r[1])   if r[1] else 0
+        nc_point_redeemed    = float(r[2]) if r[2] else 0.0
+        nc_redeemed_purch_v  = float(r[3]) if r[3] else 0.0
 
         if nc_redeemed_purch_v > 0:
             nc_discount_pct = (nc_point_redeemed / nc_redeemed_purch_v) * 100
             nc_avg_purchase = nc_redeemed_purch_v / nc_redeemed_count if nc_redeemed_count else 0
-            nc_avg_points   = nc_point_redeemed / nc_redeemed_count if nc_redeemed_count else 0
+            nc_avg_points   = nc_point_redeemed   / nc_redeemed_count if nc_redeemed_count else 0
         else:
-            nc_discount_pct = 0
-            nc_avg_purchase = 0
-            nc_avg_points   = 0
+            nc_discount_pct = nc_avg_purchase = nc_avg_points = 0
 
         return jsonify({
             "master_stats": {
-                "total_customer_count": nc_total_customer_count,
+                "total_customer_count":    nc_total_customer_count,
                 "total_bonus_point_given": nc_total_bonus_point_given
             },
             "range_stats": {
@@ -713,5 +681,10 @@ def new_customer_metrics():
 
 
 if __name__ == '__main__':
+    print("Starting Flask Dashboard Server on port 8080...")
+    app.run(port=8080, debug=False)
+
+
+if __name__ == "__main__":
     print("Starting Flask Dashboard Server on port 8080...")
     app.run(port=8080, debug=False)
