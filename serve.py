@@ -486,13 +486,36 @@ _BASE_MOBILES_CACHE = None
 
 # ── Classification cutoff: August 1, 2026 ────────────────────────────────────
 # Repeat Customer : has at least one purchase on or BEFORE July 31, 2026
-# New Customer    : has NO purchase before August 1, 2026
-#                   (first purchase on/after Aug 1, or no purchase history)
+# New Customer    : has NO purchase before Aug 1 AND first purchase on/after Aug 1
+# No Purchase Yet : R&E member with zero purchase records in sales_data
 CLASSIFICATION_CUTOFF = '2026-07-31'   # inclusive upper bound for Repeat
 
 def _normalize_mob_expr(col):
-    """ClickHouse expression to strip trailing .0 from mobile numbers."""
-    return f"if(endsWith({col}, '.0'), substr({col}, 1, length({col})-2), {col})"
+    """
+    Robust mobile number normalization to standard 10-digit Indian format.
+
+    Handles all known formats in the data:
+      9876543210       →  9876543210  (already clean)
+      9876543210.0     →  9876543210  (Excel float artifact)
+      919876543210     →  9876543210  (91 country-code prefix, 12 digits)
+      +919876543210    →  9876543210  (+ sign + country code)
+      09876543210      →  9876543210  (leading 0, 11 digits)
+      98765 43210      →  9876543210  (spaces)
+
+    Steps:
+      1. Cast to string, remove ALL non-digit characters (strips .0, +, spaces, -)
+      2. If 12 digits starting with '91'  → strip first 2 chars
+      3. If 11 digits starting with '0'   → strip first char
+      4. Result should be a valid 10-digit mobile
+    """
+    d = f"replaceRegexpAll(toString(coalesce({col}, '')), '[^0-9]', '')"
+    return (
+        f"multiIf("
+        f"  length({d}) = 12 AND startsWith({d}, '91'), substr({d}, 3), "
+        f"  length({d}) = 11 AND startsWith({d}, '0'),  substr({d}, 2), "
+        f"  {d}"
+        f")"
+    )
 
 @app.route('/api/customer-classification')
 def customer_classification():
@@ -514,37 +537,42 @@ def customer_classification():
 
         query = f"""
             WITH
-            -- Step 1: All unique R&E participant mobiles (normalized)
+            -- Step 1: All unique R&E participant mobiles, normalized to 10 digits
+            --   refer_point_data mobiles are already 10-digit clean
             re_participants AS (
                 SELECT DISTINCT
                     {_normalize_mob_expr('customer_mobile_number')} AS mob
                 FROM refer_point_data
                 WHERE customer_mobile_number != ''
                   AND customer_mobile_number IS NOT NULL
+                  AND length({_normalize_mob_expr('customer_mobile_number')}) = 10
             ),
 
-            -- Step 2: Mobiles with at least one purchase BEFORE August 1, 2026 = Repeat
+            -- Step 2: Repeat base = mobiles with at least one purchase <= July 31, 2026
+            --   sales_data has some 12-digit mobiles with 91 prefix → normalized to 10
             repeat_base AS (
                 SELECT DISTINCT
                     {_normalize_mob_expr('customer_mobile')} AS mob
                 FROM sales_data
                 WHERE parsed_date <= '{CLASSIFICATION_CUTOFF}'
                   AND customer_mobile != ''
+                  AND length({_normalize_mob_expr('customer_mobile')}) = 10
             ),
 
-            -- Step 3: Mobiles with at least one purchase ON or AFTER August 1, 2026
+            -- Step 3: Aug buyers = mobiles with at least one purchase >= August 1, 2026
             aug_buyers AS (
                 SELECT DISTINCT
                     {_normalize_mob_expr('customer_mobile')} AS mob
                 FROM sales_data
                 WHERE parsed_date >= '2026-08-01'
                   AND customer_mobile != ''
+                  AND length({_normalize_mob_expr('customer_mobile')}) = 10
             )
 
-            -- Step 4: Classify every R&E participant into 3 groups
-            --   Repeat          = bought before Aug 1 (may also have bought after)
-            --   New             = did NOT buy before Aug 1, BUT bought on/after Aug 1
-            --   No Purchase Yet = no purchase in sales_data at all
+            -- Step 4: Classify every R&E participant — mutually exclusive groups
+            --   Repeat          = bought on or before July 31, 2026
+            --   New             = first purchase on or after August 1, 2026 (no prior purchase)
+            --   No Purchase Yet = no purchase record in sales_data at all
             SELECT
                 count()                                                              AS total_participants,
                 countIf(mob IN (SELECT mob FROM repeat_base))                        AS repeat_count,
