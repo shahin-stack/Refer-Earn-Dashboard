@@ -1,0 +1,899 @@
+:root {
+    --bg-dark: #0f172a;
+    --sidebar-bg: rgba(15, 23, 42, 0.95);
+    --card-bg: rgba(255, 255, 255, 0.03);
+    --accent-blue: #3b82f6;
+    --accent-emerald: #10b981;
+    --accent-purple: #8b5cf6;
+    --accent-gold: #f59e0b;
+    --text-primary: #f8fafc;
+    --text-secondary: #94a3b8;
+    --glass-border: rgba(255, 255, 255, 0.08);
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    line-height: 1.5;
+    overflow-x: hidden;
+    /* Use the generated premium background image */
+    background-image: url('dashboard_hero_bg_1774607765479.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+}
+
+.dashboard-container {
+    display: flex;
+    min-height: 100vh;
+}
+
+/* Sidebar Styling */
+.sidebar {
+    width: 260px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--glass-border);
+    backdrop-filter: blur(12px);
+    display: flex;
+    flex-direction: column;
+    padding: 2rem 1.5rem;
+    position: fixed;
+    height: 100vh;
+    z-index: 100;
+}
+
+.logo-container {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 2.5rem;
+}
+
+.logo-icon {
+    width: 32px;
+    height: 32px;
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-emerald));
+    border-radius: 8px;
+}
+
+.sidebar-logo-img {
+    height: 64px;
+    max-width: 100%;
+    object-fit: contain;
+    border-radius: 8px;
+}
+
+.logo-text {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.25rem;
+    letter-spacing: -0.02em;
+}
+
+.sidebar-nav {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    flex-grow: 1;
+}
+
+.nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    color: var(--text-secondary);
+    text-decoration: none;
+    border-radius: 12px;
+    transition: all 0.2s ease;
+}
+
+.nav-item:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+}
+
+.nav-item.active {
+    background: rgba(59, 130, 246, 0.15);
+    color: var(--accent-blue);
+    font-weight: 500;
+}
+
+.sidebar-footer {
+    padding-top: 2rem;
+    border-top: 1px solid var(--glass-border);
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.status-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+    color: var(--accent-emerald);
+}
+
+.status-indicator::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    background: var(--accent-emerald);
+    border-radius: 50%;
+    box-shadow: 0 0 8px var(--accent-emerald);
+}
+
+/* Main Content Styling */
+.main-content {
+    flex-grow: 1;
+    margin-left: 260px;
+    padding: 2.5rem 3rem;
+}
+
+.main-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 3rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.filter-controls {
+    display: flex;
+    gap: 1rem;
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.5rem 1rem;
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+}
+
+.filter-group {
+    display: flex;
+    flex-direction: column;
+}
+
+.filter-group label {
+    font-size: 0.65rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    font-weight: 600;
+}
+
+.filter-group input {
+    background: transparent;
+    border: none;
+    color: var(--text-primary);
+    font-size: 0.875rem;
+    font-family: inherit;
+    outline: none;
+    cursor: pointer;
+}
+
+#exportBtn {
+    background: linear-gradient(135deg, var(--accent-blue), var(--accent-emerald));
+    transition: all 0.3s ease;
+}
+
+#exportBtn:hover {
+    filter: brightness(1.2);
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+.page-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.75rem;
+    margin-bottom: 0.15rem;
+}
+
+.page-subtitle {
+    color: var(--text-secondary);
+}
+
+.btn-primary {
+    background: var(--accent-blue);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+}
+
+/* Section Styling */
+.section {
+    margin-bottom: 4rem;
+}
+
+.section-badge {
+    display: inline-block;
+    color: var(--accent-blue);
+    font-size: 0.75rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    margin-bottom: 0.5rem;
+}
+
+.section-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.5rem;
+    margin-bottom: 2rem;
+}
+
+/* Metrics Grid Custom Styling */
+.metrics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.glass {
+    background: var(--card-bg);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    transition: transform 0.3s ease, border-color 0.3s ease;
+}
+
+.glass:hover {
+    transform: translateY(-5px);
+    border-color: rgba(255, 255, 255, 0.15);
+}
+
+.metric-card {
+    padding: 1.5rem;
+    border-radius: 20px;
+    display: flex;
+    align-items: flex-start;
+    gap: 1.25rem;
+}
+
+.metric-card.accent {
+    border-left: 4px solid var(--accent-gold);
+}
+
+.metric-card.highlight {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(16, 185, 129, 0.1));
+}
+
+.card-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.25rem;
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.card-label {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.875rem;
+    margin-bottom: 0.25rem;
+}
+
+.card-value {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.card-trend {
+    font-size: 0.75rem;
+    padding: 0.25rem 0.5rem;
+    border-radius: 6px;
+    display: inline-block;
+}
+
+.card-trend.up { color: var(--accent-emerald); background: rgba(16, 185, 129, 0.1); }
+.card-trend.blue { color: var(--accent-blue); background: rgba(59, 130, 246, 0.1); }
+.card-trend.grey { color: var(--text-secondary); background: rgba(255, 255, 255, 0.05); }
+
+.card-progress-bar {
+    width: 100px;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    margin-top: 1rem;
+}
+
+.progress-fill {
+    height: 100%;
+    background: linear-gradient(to right, var(--accent-blue), var(--accent-emerald));
+    border-radius: 3px;
+}
+
+/* Charts Section Styling */
+.charts-section, .efficiency-section {
+    display: grid;
+    grid-template-columns: 1.5fr 1fr;
+    gap: 1.5rem;
+}
+
+.efficiency-section {
+    grid-template-columns: 1fr;
+}
+
+.chart-container {
+    padding: 2rem;
+    border-radius: 20px;
+}
+
+.chart-title {
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.25rem;
+    margin-bottom: 0.5rem;
+}
+
+.chart-subtitle {
+    font-size: 0.875rem;
+    color: var(--text-secondary);
+    margin-bottom: 2rem;
+}
+
+/* Responsive Grid Adjustments */
+@media (max-width: 1200px) {
+    .charts-section {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* ── Section 03 : Age-wise Report ──────────────────────────────────────── */
+
+/* Section header row: title left, export button right */
+.age-section-header, .district-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    margin-bottom: 2rem;
+    gap: 1rem;
+}
+
+.age-section-meta, .district-section-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 0.1rem;
+}
+
+/* Export button – teal/emerald accent to echo chart colours */
+.btn-age-export, .btn-district-export {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: linear-gradient(135deg, #10b981, #06b6d4);
+    color: #fff;
+    border: none;
+    padding: 0.65rem 1.25rem;
+    border-radius: 12px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: filter 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+    flex-shrink: 0;
+}
+
+.btn-age-export:hover, .btn-district-export:hover {
+    filter: brightness(1.15);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(16, 185, 129, 0.35);
+}
+
+.btn-age-export:active, .btn-district-export:active {
+    transform: translateY(0);
+}
+
+/* Mini export button for table rows */
+.btn-mini-export {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    background: rgba(16, 185, 129, 0.1);
+    color: var(--accent-emerald);
+    border: 1px solid rgba(16, 185, 129, 0.2);
+    padding: 0.35rem 0.75rem;
+    border-radius: 8px;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s ease;
+}
+
+.btn-mini-export:hover {
+    background: rgba(16, 185, 129, 0.2);
+    transform: translateY(-1px);
+}
+
+/* Side-by-side layout: narrow table, wide chart */
+.age-report-layout {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+@media (max-width: 1100px) {
+    .age-report-layout {
+        grid-template-columns: 1fr;
+    }
+    .age-section-header, .district-section-header {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+}
+
+/* ── Table Card ── */
+.age-table-card {
+    border-radius: 20px;
+    overflow: hidden;
+    padding: 0;
+}
+
+.age-table-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.4rem 1.5rem 1rem;
+    border-bottom: 1px solid var(--glass-border);
+    background: linear-gradient(135deg, rgba(59,130,246,0.07), rgba(16,185,129,0.05));
+}
+
+.age-table-icon {
+    font-size: 2.1rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.age-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.9rem;
+}
+
+.age-table thead tr {
+    background: rgba(59, 130, 246, 0.14);
+}
+
+.age-table thead th {
+    padding: 0.8rem 1.5rem;
+    text-align: left;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent-blue);
+}
+
+.age-table thead th:last-child {
+    text-align: right;
+}
+
+.age-table tbody tr {
+    border-bottom: 1px solid var(--glass-border);
+    transition: background 0.18s ease;
+}
+
+.age-table tbody tr:last-child {
+    border-bottom: none;
+}
+
+.age-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.age-table tbody td {
+    padding: 0.8rem 1.5rem;
+    color: var(--text-primary);
+}
+
+.age-table tbody td:last-child {
+    text-align: right;
+    font-weight: 700;
+    color: var(--accent-emerald);
+    font-size: 0.95rem;
+}
+
+.age-table .loading-cell {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 2rem;
+}
+
+/* Total row */
+.age-table tfoot .total-row {
+    background: rgba(59, 130, 246, 0.16);
+    border-top: 2px solid rgba(59, 130, 246, 0.38);
+}
+
+.age-table tfoot .total-row td {
+    padding: 0.95rem 1.5rem;
+    font-weight: 700;
+    font-family: 'Outfit', sans-serif;
+    font-size: 1rem;
+    color: var(--text-primary);
+}
+
+.age-table tfoot .total-row td:last-child {
+    text-align: right;
+    color: var(--accent-blue);
+    font-size: 1.05rem;
+}
+
+/* ── Chart Card ── */
+.age-chart-card {
+    border-radius: 20px;
+    padding: 1.75rem 1.75rem 1.5rem;
+}
+
+/* ── Section 04 : Top 20 Districts ───────────────────────────────────── */
+.district-table-card {
+    border-radius: 20px;
+    overflow: hidden;
+    padding: 0;
+}
+
+.district-table-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding: 1.5rem 1.75rem 1rem;
+    border-bottom: 1px solid var(--glass-border);
+    background: linear-gradient(135deg, rgba(59,130,246,0.08), rgba(16,185,129,0.06));
+}
+
+.district-table-icon {
+    font-size: 2.1rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.district-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.95rem;
+}
+
+.district-table thead tr {
+    background: rgba(59, 130, 246, 0.15);
+}
+
+.district-table thead th {
+    padding: 1rem 1.75rem;
+    text-align: left;
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--accent-blue);
+    border-bottom: 2px solid rgba(255,255,255,0.05);
+}
+
+.district-table thead th:last-child {
+    text-align: right;
+}
+
+/* Alternating row colors for a professional look */
+.district-table tbody tr {
+    transition: background 0.2s ease;
+}
+
+.district-table tbody tr:nth-child(odd) {
+    background: transparent;
+}
+
+.district-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.03);
+}
+
+.district-table tbody tr:hover {
+    background: rgba(255, 255, 255, 0.07);
+}
+
+.district-table tbody td {
+    padding: 0.9rem 1.75rem;
+    color: var(--text-primary);
+    border-bottom: 1px solid rgba(255,255,255,0.02);
+}
+
+.district-table tbody td:first-child {
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.district-table tbody td:nth-child(2) {
+    font-weight: 600;
+}
+
+.district-table tbody td:last-child {
+    text-align: right;
+    font-weight: 600;
+    color: var(--accent-emerald);
+}
+
+.district-table .loading-cell {
+    text-align: center;
+    color: var(--text-secondary);
+    padding: 2rem;
+}
+
+/* Total Row */
+.district-table tfoot .total-row {
+    background: rgba(59, 130, 246, 0.18);
+    border-top: 2px solid rgba(59, 130, 246, 0.4);
+}
+
+.district-table tfoot .total-row td {
+    padding: 1.15rem 1.75rem;
+    font-weight: 700;
+    font-family: 'Outfit', sans-serif;
+    font-size: 1.05rem;
+    color: var(--text-primary);
+}
+
+.district-table tfoot .total-row td:last-child {
+    text-align: right;
+    color: var(--accent-blue);
+    font-size: 1.15rem;
+}
+
+/* ── SPA Tab Navigation ── */
+.tab-section {
+    display: none;
+    animation: fadeIn 0.4s ease-out forwards;
+}
+
+.tab-section.active-tab {
+    display: block;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Section 06 : Customer Classification ────────────────────────────── */
+
+/* Three KPI cards in a row */
+.classification-kpi-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1.25rem;
+    margin-bottom: 1.75rem;
+}
+
+@media (max-width: 1100px) {
+    .classification-kpi-row { grid-template-columns: 1fr; }
+}
+
+.classif-card {
+    border-radius: 20px;
+    padding: 1.5rem 1.75rem;
+    display: flex;
+    align-items: center;
+    gap: 1.25rem;
+    transition: transform 0.25s ease, border-color 0.25s ease;
+}
+
+.classif-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(255,255,255,0.18);
+}
+
+.classif-total  { border-left: 4px solid var(--accent-blue); }
+.classif-repeat { border-left: 4px solid #f59e0b; }
+.classif-new    { border-left: 4px solid #10b981; }
+
+.classif-icon {
+    font-size: 2.2rem;
+    line-height: 1;
+    flex-shrink: 0;
+}
+
+.classif-info {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.classif-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+    color: var(--text-secondary);
+}
+
+.classif-value {
+    font-family: 'Outfit', sans-serif;
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.classif-sub {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    margin-top: 0.1rem;
+}
+
+.classif-pct {
+    font-size: 1rem;
+    font-weight: 600;
+    border-radius: 6px;
+    display: inline-block;
+    padding: 0.1rem 0.4rem;
+    margin-top: 0.1rem;
+}
+
+.repeat-pct { color: #f59e0b; background: rgba(245,158,11,0.1); }
+.new-pct    { color: #10b981; background: rgba(16,185,129,0.1); }
+
+/* Chart + table side-by-side */
+.classification-layout {
+    display: grid;
+    grid-template-columns: 1fr 1.4fr;
+    gap: 1.5rem;
+    align-items: start;
+}
+
+@media (max-width: 1100px) {
+    .classification-layout { grid-template-columns: 1fr; }
+}
+
+.classif-chart-card {
+    border-radius: 20px;
+    padding: 1.75rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+
+.classif-chart-wrapper {
+    width: 100%;
+    max-width: 280px;
+    margin: 1rem auto 0;
+}
+
+.classif-legend {
+    display: flex;
+    gap: 1.5rem;
+    margin-top: 1.25rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    align-items: center;
+    flex-wrap: wrap;
+    justify-content: center;
+}
+
+.legend-dot {
+    display: inline-block;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.repeat-dot { background: #f59e0b; }
+.new-dot    { background: #10b981; }
+
+.classif-table-card {
+    border-radius: 20px;
+    overflow: hidden;
+    padding: 0;
+}
+
+.classif-note {
+    padding: 1rem 1.75rem;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    border-top: 1px solid var(--glass-border);
+    line-height: 1.6;
+    background: rgba(59,130,246,0.04);
+}
+
+.classif-note strong {
+    color: var(--accent-blue);
+}
+
+/* ── Section Date Filter (Age & District) ────────────────────────────────── */
+.section-date-filter {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
+}
+
+.sdf-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+}
+
+.sdf-group label {
+    font-size: 0.65rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+}
+
+.sdf-input {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    padding: 0.35rem 0.65rem;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.2s ease;
+}
+
+.sdf-input:focus {
+    border-color: var(--accent-blue);
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+}
+
+.sdf-apply-btn {
+    background: linear-gradient(135deg, var(--accent-blue), #6366f1);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 0.38rem 1rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: filter 0.2s ease, transform 0.2s ease;
+    align-self: flex-end;
+}
+
+.sdf-apply-btn:hover {
+    filter: brightness(1.15);
+    transform: translateY(-1px);
+}
+
+.sdf-clear-btn {
+    background: rgba(255, 255, 255, 0.06);
+    color: var(--text-secondary);
+    border: 1px solid var(--glass-border);
+    border-radius: 8px;
+    padding: 0.38rem 0.85rem;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.82rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.2s ease, color 0.2s ease;
+    align-self: flex-end;
+}
+
+.sdf-clear-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary);
+}

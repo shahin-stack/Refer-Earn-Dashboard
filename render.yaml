@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: refer-earn-dashboard
+    env: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn serve:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120
+    envVars:
+      - key: CLICKHOUSE_HOST
+        value: pdhsuv47ec.ap-south-1.aws.clickhouse.cloud
+      - key: CLICKHOUSE_PORT
+        value: "8443"
+      - key: CLICKHOUSE_USER
+        value: default
+      - key: CLICKHOUSE_PASSWORD
+        sync: false   # Set this secret in Render dashboard
+      - key: PYTHON_VERSION
+        value: "3.11.0"

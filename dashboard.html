@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Loyalty Analytics Dashboard | Refer & Earn</title>
+    <!-- Google Fonts: Outfit (Headings) and Inter (Body) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Outfit:wght@600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- xlsx-js-style for Styled Excel Export -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <img src="logo.png" alt="myG Future Logo" class="sidebar-logo-img" onerror="this.style.display='none'; this.nextElementSibling.style.display='block';">
+                <div class="logo-icon" style="display:none;"></div>
+                <h2 class="logo-text">Refer &amp; Earn</h2>
+            </div>
+            <nav class="sidebar-nav">
+                <a href="#overviewSection" class="nav-item tab-link active" data-target="overviewSection">
+                    <span class="nav-icon">📊</span> Overview
+                </a>
+                <a href="#ageReportSection" class="nav-item tab-link" data-target="ageReportSection">
+                    <span class="nav-icon">🎂</span> Age-wise User Distribution
+                </a>
+                <a href="#districtReportSection" class="nav-item tab-link" data-target="districtReportSection">
+                    <span class="nav-icon">📍</span> Top 20 Districts Summary
+                </a>
+                <a href="#birthMonthSection" class="nav-item tab-link" data-target="birthMonthSection">
+                    <span class="nav-icon">📆</span> Birth Month Summary
+                </a>
+                <a href="#anniversaryMonthSection" class="nav-item tab-link" data-target="anniversaryMonthSection">
+                    <span class="nav-icon">💍</span> Anniversary Month Summary
+                </a>
+                <a href="#customerClassificationSection" class="nav-item tab-link" data-target="customerClassificationSection">
+                    <span class="nav-icon">🔍</span> Customer Classification
+                </a>
+                <a href="#newCustomerMetricsSection" class="nav-item tab-link" data-target="newCustomerMetricsSection">
+                    <span class="nav-icon">✨</span> New Customer Metrics
+                </a>
+            </nav>
+            <div class="sidebar-footer">
+                <p>System v1.2.4</p>
+                <div class="status-indicator">Online</div>
+            </div>
+        </aside>
+
+        <!-- Main Dashboard Content -->
+        <main class="main-content">
+            <header class="main-header">
+                <div class="header-left">
+                    <h1 class="page-title">Program Overview</h1>
+                    <p class="page-subtitle">Loyalty analytics and redemption performance</p>
+                </div>
+                <div class="header-right">
+                    <div class="filter-controls">
+                        <div class="filter-group">
+                            <label for="dateFrom">From</label>
+                            <input type="date" id="dateFrom">
+                        </div>
+                        <div class="filter-group">
+                            <label for="dateTo">To</label>
+                            <input type="date" id="dateTo">
+                        </div>
+                        <button class="sdf-apply-btn" id="mainApplyFilter" style="align-self: center;">Apply</button>
+                    </div>
+                    <button class="btn-primary" id="exportBtn">Export to Excel</button>
+                </div>
+            </header>
+
+            <section class="section first-section tab-section active-tab" id="overviewSection">
+                <div class="section-badge">Section 01</div>
+                <h2 class="section-title">Core Performance Metrics</h2>
+                
+                <div class="metrics-grid">
+                    <!-- Metric Card: Total Customers -->
+                    <div class="metric-card glass">
+                        <div class="card-icon blue">👥</div>
+                        <div class="card-content">
+                            <span class="card-label">Total Customer Count</span>
+                            <h3 class="card-value">—</h3>
+                            <div class="card-trend up">Verified from Monthly DB</div>
+                        </div>
+                    </div>
+
+                    <!-- Metric Card: Bonus Points -->
+                    <div class="metric-card glass">
+                        <div class="card-icon emerald">💎</div>
+                        <div class="card-content">
+                            <span class="card-label">Total Bonus Point Given</span>
+                            <h3 class="card-value">—</h3>
+                            <div class="card-trend grey">Total bonus pts issued</div>
+                        </div>
+                    </div>
+
+                    <!-- Metric Card: Purchase Count -->
+                    <div class="metric-card glass">
+                        <div class="card-icon purple">🛒</div>
+                        <div class="card-content">
+                            <span class="card-label">Total Purchase Count</span>
+                            <h3 class="card-value">—</h3>
+                            <div class="card-trend up">Unique match unique mobs</div>
+                        </div>
+                    </div>
+
+                    <!-- Metric Card: Redeemed Count -->
+                    <div class="metric-card glass accent">
+                        <div class="card-icon gold">🎯</div>
+                        <div class="card-content">
+                            <span class="card-label">Total Redeemed Count</span>
+                            <h3 class="card-value">—</h3>
+                            <div class="card-trend blue">Target verified</div>
+                        </div>
+                    </div>
+
+                    <!-- Metric Card: Redeemed Points -->
+                    <div class="metric-card glass">
+                        <div class="card-icon red">🔥</div>
+                        <div class="card-content">
+                            <span class="card-label">Total Point Redeemed Value</span>
+                            <h3 class="card-value" id="cardPointRedeemed">—</h3>
+                            <div class="card-trend grey">Total pts redeemed</div>
+                        </div>
+                    </div>
+
+                    <!-- Metric Card: Redeemed Purchases -->
+                    <div class="metric-card glass">
+                        <div class="card-icon indigo">💰</div>
+                        <div class="card-content">
+                            <span class="card-label">Redeemed Purchase Value</span>
+                            <h3 class="card-value" id="cardRedeemedPurchase">—</h3>
+                            <div class="card-trend grey">Total redeemed purchase value</div>
+                        </div>
+                    </div>
+
+                    <!-- Ratio: Discount % -->
+                    <div class="metric-card glass highlight">
+                        <div class="card-icon teal">📈</div>
+                        <div class="card-content">
+                            <span class="card-label">Loyalty Point Discount %</span>
+                            <h3 class="card-value" id="cardDiscountPct">—</h3>
+                            <div class="card-progress-bar">
+                                <div class="progress-fill" id="discountProgressBar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ratio: Avg Purchase -->
+                    <div class="metric-card glass">
+                        <div class="card-icon pink">📊</div>
+                        <div class="card-content">
+                            <span class="card-label">Avg Purchase Value</span>
+                            <h3 class="card-value" id="cardAvgPurchase">—</h3>
+                            <div class="card-trend grey">Per redeemed customer</div>
+                        </div>
+                    </div>
+
+                    <!-- Ratio: Avg Redemption -->
+                    <div class="metric-card glass">
+                        <div class="card-icon slate">✨</div>
+                        <div class="card-content">
+                            <span class="card-label">Avg Point Redemption</span>
+                            <h3 class="card-value" id="cardAvgRedemption">—</h3>
+                            <div class="card-trend grey">Points per customer</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Daily Trend Chart -->
+                <div class="glass age-chart-card" style="margin-top: 2rem;">
+                    <h3 class="chart-title">Customer Acquisition Trend</h3>
+                    <p class="chart-subtitle">Daily new customers</p>
+                    <div class="age-chart-wrapper" style="height: 300px;">
+                        <canvas id="customerTrendChart"></canvas>
+                    </div>
+                </div>
+            </section>
+
+
+            <!-- ── Section 02 : Age-wise User Distribution ───────────────── -->
+            <section class="section tab-section" id="ageReportSection">
+                <div class="age-section-header">
+                    <div class="age-section-meta">
+                        <div class="section-badge">Section 02</div>
+                        <h2 class="section-title" style="margin-bottom:0.25rem;">Age-wise User Distribution</h2>
+                        <p class="page-subtitle">
+                            Refer &amp; Earn members segmented by age band &nbsp;·&nbsp;
+                            <span id="ageRefDate" style="color:var(--accent-blue); font-weight:600;"></span>
+                        </p>
+                        <div class="section-date-filter">
+                            <div class="sdf-group">
+                                <label for="ageFrom">From</label>
+                                <input type="date" id="ageFrom" class="sdf-input">
+                            </div>
+                            <div class="sdf-group">
+                                <label for="ageTo">To</label>
+                                <input type="date" id="ageTo" class="sdf-input">
+                            </div>
+                            <button class="sdf-apply-btn" id="ageApplyFilter">Apply</button>
+                            <button class="sdf-clear-btn" id="ageClearFilter">Clear</button>
+                        </div>
+                    </div>
+                    <button class="btn-age-export" id="ageExportBtn" title="Export age report to Excel">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Export to Excel
+                    </button>
+                </div>
+
+                <div class="age-report-layout">
+                    <!-- Table -->
+                    <div class="glass age-table-card">
+                        <div class="age-table-header">
+                            <span class="age-table-icon">🎂</span>
+                            <div>
+                                <h3 class="chart-title">Age-wise Report</h3>
+                                <p class="chart-subtitle">Refer &amp; Earn Age-wise report</p>
+                            </div>
+                        </div>
+                        <table class="age-table" id="ageTable">
+                            <thead>
+                                <tr>
+                                    <th>Age Group</th>
+                                    <th>Count</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ageTableBody">
+                                <tr><td colspan="2" class="loading-cell">Loading…</td></tr>
+                            </tbody>
+                            <tfoot>
+                                <tr class="total-row" id="ageTotalRow">
+                                    <td>Total</td>
+                                    <td id="ageTotalCount">—</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+
+                    <!-- Bar Chart -->
+                    <div class="glass age-chart-card">
+                        <h3 class="chart-title">Distribution Chart</h3>
+                        <p class="chart-subtitle">Users per age band</p>
+                        <div class="age-chart-wrapper">
+                            <canvas id="ageBarChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ── Section 03 : Top 20 Districts ───────────────────────── -->
+            <section class="section tab-section" id="districtReportSection">
+                <div class="district-section-header">
+                    <div class="district-section-meta">
+                        <div class="section-badge">Section 03</div>
+                        <h2 class="section-title" style="margin-bottom:0.25rem;">Top 20 Districts Summary</h2>
+                        <p class="page-subtitle">
+                            Refer &amp; Earn members segmented by geographical district
+                        </p>
+                        <div class="section-date-filter">
+                            <div class="sdf-group">
+                                <label for="districtFrom">From</label>
+                                <input type="date" id="districtFrom" class="sdf-input">
+                            </div>
+                            <div class="sdf-group">
+                                <label for="districtTo">To</label>
+                                <input type="date" id="districtTo" class="sdf-input">
+                            </div>
+                            <button class="sdf-apply-btn" id="districtApplyFilter">Apply</button>
+                            <button class="sdf-clear-btn" id="districtClearFilter">Clear</button>
+                        </div>
+                    </div>
+                    <button class="btn-district-export" id="districtExportBtn" title="Export district report to Excel">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Export to Excel
+                    </button>
+                </div>
+
+                <div class="glass district-table-card">
+                    <div class="district-table-header">
+                        <span class="district-table-icon">📍</span>
+                        <div>
+                            <h3 class="chart-title">District-wise Report</h3>
+                            <p class="chart-subtitle">Top 20 most populated districts</p>
+                        </div>
+                    </div>
+                    <table class="district-table" id="districtTable">
+                        <thead>
+                            <tr>
+                                <th style="width:10%">Rank</th>
+                                <th>District</th>
+                                <th style="width:25%">Count</th>
+                            </tr>
+                        </thead>
+                        <tbody id="districtTableBody">
+                            <tr><td colspan="3" class="loading-cell">Loading…</td></tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="total-row" id="districtTotalRow">
+                                <td colspan="2">Total (Top 20)</td>
+                                <td id="districtTotalCount">—</td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </section>
+            <!-- ── Section 04 : Birth Month Distribution ────────────────────── -->
+            <section class="section tab-section" id="birthMonthSection">
+                <div class="district-section-header">
+                    <div class="district-section-meta">
+                        <div class="section-badge">Section 04</div>
+                        <h2 class="section-title" style="margin-bottom:0.25rem;">Birth Month Distribution</h2>
+                        <p class="page-subtitle">
+                            Refer &amp; Earn members segmented by birth month
+                        </p>
+                    </div>
+                </div>
+
+                <div class="glass district-table-card">
+                    <div class="district-table-header">
+                        <span class="district-table-icon">🎂</span>
+                        <div>
+                            <h3 class="chart-title">Birth Month Report</h3>
+                            <p class="chart-subtitle">Customer distribution (Jan-Dec)</p>
+                        </div>
+                    </div>
+                    <table class="district-table" id="birthMonthTable">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th style="width:25%; text-align:right">Customer Count</th>
+                                <th style="width:25%; text-align:right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="birthMonthTableBody">
+                            <tr><td colspan="3" class="loading-cell">Loading…</td></tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="total-row" id="birthMonthTotalRow">
+                                <td>Total Customers</td>
+                                <td id="birthMonthTotalCount">—</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ── Section 05 : Anniversary Month Distribution ──────────── -->
+            <section class="section tab-section" id="anniversaryMonthSection">
+                <div class="district-section-header">
+                    <div class="district-section-meta">
+                        <div class="section-badge">Section 05</div>
+                        <h2 class="section-title" style="margin-bottom:0.25rem;">Anniversary Month Distribution</h2>
+                        <p class="page-subtitle">
+                            Refer &amp; Earn members segmented by wedding anniversary month
+                        </p>
+                    </div>
+                </div>
+
+                <div class="glass district-table-card">
+                    <div class="district-table-header">
+                        <span class="district-table-icon">💍</span>
+                        <div>
+                            <h3 class="chart-title">Anniversary Month Report</h3>
+                            <p class="chart-subtitle">Customer distribution (Jan-Dec)</p>
+                        </div>
+                    </div>
+                    <table class="district-table" id="anniversaryMonthTable">
+                        <thead>
+                            <tr>
+                                <th>Month</th>
+                                <th style="width:25%; text-align:right">Customer Count</th>
+                                <th style="width:25%; text-align:right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="anniversaryMonthTableBody">
+                            <tr><td colspan="3" class="loading-cell">Loading…</td></tr>
+                        </tbody>
+                        <tfoot>
+                            <tr class="total-row" id="anniversaryMonthTotalRow">
+                                <td>Total Customers</td>
+                                <td id="anniversaryMonthTotalCount">—</td>
+                                <td></td>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ── Section 06 : Customer Classification ──────────────── -->
+            <section class="section tab-section" id="customerClassificationSection">
+                <div class="district-section-header">
+                    <div class="district-section-meta">
+                        <div class="section-badge">Section 06</div>
+                        <h2 class="section-title" style="margin-bottom:0.25rem;">Customer Classification</h2>
+                        <p class="page-subtitle">
+                            Refer &amp; Earn participants classified as Repeat vs New customers
+                            &nbsp;·&nbsp; matched on <strong>Customer Mobile</strong>
+                        </p>
+                    </div>
+                    <button class="btn-district-export" id="classificationExportBtn" title="Export classification report to Excel">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="7 10 12 15 17 10"/>
+                            <line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Export to Excel
+                    </button>
+                </div>
+
+                <!-- KPI Summary Cards -->
+                <div class="classification-kpi-row">
+                    <div class="glass classif-card classif-total">
+                        <div class="classif-icon">👥</div>
+                        <div class="classif-info">
+                            <span class="classif-label">Total R&amp;E Participants</span>
+                            <span class="classif-value" id="ccTotalParticipants">—</span>
+                            <span class="classif-sub" id="ccBaseSize">Base dataset loading…</span>
+                        </div>
+                    </div>
+                    <div class="glass classif-card classif-repeat">
+                        <div class="classif-icon">🔄</div>
+                        <div class="classif-info">
+                            <span class="classif-label">Repeat Customers</span>
+                            <span class="classif-value" id="ccRepeatCount">—</span>
+                            <span class="classif-pct repeat-pct" id="ccRepeatPct">—%</span>
+                        </div>
+                    </div>
+                    <div class="glass classif-card classif-new">
+                        <div class="classif-icon">✨</div>
+                        <div class="classif-info">
+                            <span class="classif-label">New Customers</span>
+                            <span class="classif-value" id="ccNewCount">—</span>
+                            <span class="classif-pct new-pct" id="ccNewPct">—%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Chart + Table side by side -->
+                <div class="classification-layout">
+                    <!-- Doughnut Chart -->
+                    <div class="glass classif-chart-card">
+                        <h3 class="chart-title">Repeat vs New Split</h3>
+                        <p class="chart-subtitle">Percentage distribution of R&amp;E participants</p>
+                        <div class="classif-chart-wrapper">
+                            <canvas id="classificationDoughnut"></canvas>
+                        </div>
+                        <div class="classif-legend">
+                            <span class="legend-dot repeat-dot"></span><span>Repeat Customers</span>
+                            <span class="legend-dot new-dot"></span><span>New Customers</span>
+                        </div>
+                    </div>
+
+                    <!-- Summary Table -->
+                    <div class="glass classif-table-card">
+                        <div class="district-table-header">
+                            <span class="district-table-icon">📋</span>
+                            <div>
+                                <h3 class="chart-title">Classification Summary</h3>
+                                <p class="chart-subtitle">Breakdown by customer type</p>
+                            </div>
+                        </div>
+                        <table class="district-table" id="classificationTable">
+                            <thead>
+                                <tr>
+                                    <th>Customer Type</th>
+                                    <th style="text-align:right">Count</th>
+                                    <th style="text-align:right">Share %</th>
+                                </tr>
+                            </thead>
+                            <tbody id="classificationTableBody">
+                                <tr><td colspan="3" class="loading-cell">Loading…</td></tr>
+                            </tbody>
+                            <tfoot>
+                                <tr class="total-row">
+                                    <td>Total</td>
+                                    <td id="ccTableTotal" style="text-align:right">—</td>
+                                    <td style="text-align:right">100%</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                        <div class="classif-note">
+                            <strong>Note:</strong> Repeat = already in customer base before Refer &amp; Earn started.
+                            New = first-time buyers acquired through the programme.
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- ── Section 07 : New Customer Metrics ──────────────── -->
+            <section class="section tab-section" id="newCustomerMetricsSection">
+                <div class="section-badge">Section 07</div>
+                <h2 class="section-title">New Customer Performance Metrics</h2>
+                
+                <div class="metrics-grid">
+                    <!-- Metric Card: Total Customers -->
+                    <div class="metric-card glass nc-card">
+                        <div class="card-icon blue">👥</div>
+                        <div class="card-content">
+                            <span class="card-label">Total Customer Count</span>
+                            <h3 class="card-value" id="nc-cardTotalCustomers">—</h3>
+                            <div class="card-trend up">Exclusively new shoppers</div>
+                        </div>
+                    </div>
+
+                    <!-- Metric Card: Bonus Points -->
+                    <div class="metric-card glass nc-card">
+                        <div class="card-icon emerald">💎</div>
+                        <div class="card-content">
+                            <span class="card-label">Total Bonus Point Given</span>
+                            <h3 class="card-value" id="nc-cardBonusPoints">—</h3>
+                            <div class="card-trend grey">Total bonus pts issued</div>
+                        </div>
+                    </div>
+
+                    <!-- Metric Card: Purchase Count -->
+                    <div class="metric-card glass nc-card">
+                        <div class="card-icon purple">🛒</div>
+                        <div class="card-content">
+                            <span class="card-label">Total Purchase Count</span>
+                            <h3 class="card-value" id="nc-cardPurchaseCount">—</h3>
+                            <div class="card-trend up">Unique match unique mobs</div>
+                        </div>
+                    </div>
+
+                    <!-- Metric Card: Redeemed Count -->
+                    <div class="metric-card glass accent nc-card">
+                        <div class="card-icon gold">🎯</div>
+                        <div class="card-content">
+                            <span class="card-label">Total Redeemed Count</span>
+                            <h3 class="card-value" id="nc-cardRedeemedCount">—</h3>
+                            <div class="card-trend blue">Target verified</div>
+                        </div>
+                    </div>
+
+                    <!-- Metric Card: Redeemed Points -->
+                    <div class="metric-card glass nc-card">
+                        <div class="card-icon red">🔥</div>
+                        <div class="card-content">
+                            <span class="card-label">Total Point Redeemed Value</span>
+                            <h3 class="card-value" id="nc-cardPointRedeemed">—</h3>
+                            <div class="card-trend grey">Total pts redeemed</div>
+                        </div>
+                    </div>
+
+                    <!-- Metric Card: Redeemed Purchases -->
+                    <div class="metric-card glass nc-card">
+                        <div class="card-icon indigo">💰</div>
+                        <div class="card-content">
+                            <span class="card-label">Redeemed Purchase Value</span>
+                            <h3 class="card-value" id="nc-cardRedeemedPurchase">—</h3>
+                            <div class="card-trend grey">Total redeemed purchase value</div>
+                        </div>
+                    </div>
+
+                    <!-- Ratio: Discount % -->
+                    <div class="metric-card glass highlight nc-card">
+                        <div class="card-icon teal">📈</div>
+                        <div class="card-content">
+                            <span class="card-label">Loyalty Point Discount %</span>
+                            <h3 class="card-value" id="nc-cardDiscountPct">—</h3>
+                            <div class="card-progress-bar">
+                                <div class="progress-fill" id="nc-discountProgressBar" style="width: 0%"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ratio: Avg Purchase -->
+                    <div class="metric-card glass nc-card">
+                        <div class="card-icon pink">📊</div>
+                        <div class="card-content">
+                            <span class="card-label">Avg Purchase Value</span>
+                            <h3 class="card-value" id="nc-cardAvgPurchase">—</h3>
+                            <div class="card-trend grey">Per redeemed customer</div>
+                        </div>
+                    </div>
+
+                    <!-- Ratio: Avg Redemption -->
+                    <div class="metric-card glass nc-card">
+                        <div class="card-icon slate">✨</div>
+                        <div class="card-content">
+                            <span class="card-label">Avg Point Redemption</span>
+                            <h3 class="card-value" id="nc-cardAvgRedemption">—</h3>
+                            <div class="card-trend grey">Points per customer</div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+        </main>
+    </div>
+    <!-- Script resources -->
+    <script src="app.js"></script>
+</body>
+</html>
