@@ -218,122 +218,110 @@ def daily_customer_trend():
 
 @app.route('/api/age-report')
 def age_report():
-    """
-    Read eaas_users from eaas.db, parse date_of_birth (DD-MM-YYYY),
-    calculate age as of today, bucket into defined age bands,
-    and return counts + total. Excludes null/invalid/future DOBs.
-    Optionally filter by created_at using start/end date params (YYYY-MM-DD).
-    """
     from datetime import date, datetime
-
     today = date.today()
     start_date = request.args.get('start', '')
     end_date   = request.args.get('end', '')
 
     AGE_BANDS = [
-        ('0-10',       0,   10),
-        ('11-16',     11,   16),
-        ('17-20',     17,   20),
-        ('21-25',     21,   25),
-        ('26-30',     26,   30),
-        ('31-40',     31,   40),
-        ('41-50',     41,   50),
-        ('51-60',     51,   60),
-        ('Above 60',  61, 9999),
+        ('0-10',      0,   10),
+        ('11-16',    11,   16),
+        ('17-20',    17,   20),
+        ('21-25',    21,   25),
+        ('26-30',    26,   30),
+        ('31-40',    31,   40),
+        ('41-50',    41,   50),
+        ('51-60',    51,   60),
+        ('Above 60', 61, 9999),
     ]
-
     counts = {band[0]: 0 for band in AGE_BANDS}
 
-    # Build date filter clause
-    where_parts = ["date_of_birth IS NOT NULL", "TRIM(date_of_birth) != ''"]
-    params = []
-    if start_date:
-        where_parts.append("SUBSTR(created_at, 1, 10) >= ?")
-        params.append(start_date)
-    if end_date:
-        where_parts.append("SUBSTR(created_at, 1, 10) <= ?")
-        params.append(end_date)
-    where_clause = ' AND '.join(where_parts)
-
     try:
-        # Use sheets connector (auto-falls back to eaas.db)
-        profiles_df = get_customer_profiles_df()
-        if 'date_of_birth' not in profiles_df.columns:
-            return jsonify({'error': 'date_of_birth column not found in data source'}), 500
-
-        filtered = profiles_df[profiles_df['date_of_birth'].notna() & (profiles_df['date_of_birth'].astype(str).str.strip() != '')]
-        if start_date and 'created_at' in filtered.columns:
-            filtered = filtered[filtered['created_at'].astype(str).str[:10] >= start_date]
-        if end_date and 'created_at' in filtered.columns:
-            filtered = filtered[filtered['created_at'].astype(str).str[:10] <= end_date]
-
-        rows = [{'date_of_birth': r} for r in filtered['date_of_birth'].tolist()]
+        client = get_ch_client()
+        date_filter = ""
+        if start_date and end_date:
+            date_filter = f"AND substr(created_at, 1, 10) >= '{start_date}' AND substr(created_at, 1, 10) <= '{end_date}'"
+        query = f"""
+            SELECT date_of_birth FROM loyalty_user_data
+            WHERE date_of_birth != '' {date_filter}
+        """
+        result = client.query(query)
+        dobs = [row[0] for row in result.result_rows]
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print("age-report CH error:", e)
+        try:
+            profiles_df = get_customer_profiles_df()
+            filtered = profiles_df[profiles_df['date_of_birth'].notna() & (profiles_df['date_of_birth'].astype(str).str.strip() != '')]
+            if start_date and 'created_at' in filtered.columns:
+                filtered = filtered[filtered['created_at'].astype(str).str[:10] >= start_date]
+            if end_date and 'created_at' in filtered.columns:
+                filtered = filtered[filtered['created_at'].astype(str).str[:10] <= end_date]
+            dobs = filtered['date_of_birth'].tolist()
+        except Exception as e2:
+            return jsonify({'error': str(e2)}), 500
 
     skipped = 0
-    for row in rows:
-        dob_str = str(row['date_of_birth']).strip()
-        try:
-            dob = datetime.strptime(dob_str, '%d-%m-%Y').date()
-        except ValueError:
+    for dob_str in dobs:
+        dob_str = str(dob_str).strip()
+        dob = None
+        for fmt in ('%d-%m-%Y', '%Y-%m-%d', '%Y-%m-%d %H:%M:%S'):
+            try:
+                dob = datetime.strptime(dob_str[:len(fmt.replace('%d','00').replace('%m','00').replace('%Y','0000').replace('%H','00').replace('%M','00').replace('%S','00'))], fmt).date()
+                break
+            except:
+                pass
+        if dob is None or dob > today:
             skipped += 1
             continue
-
-        # Exclude future dates (age would be negative)
-        if dob > today:
-            skipped += 1
-            continue
-
-        # Calculate exact age in years
         age = today.year - dob.year - ((today.month, today.day) < (dob.month, dob.day))
-
-        # Bucket into age band
         for label, lo, hi in AGE_BANDS:
             if lo <= age <= hi:
                 counts[label] += 1
                 break
 
     total = sum(counts.values())
-
     bands_list = [{'age_group': label, 'count': counts[label]} for label, _, _ in AGE_BANDS]
-
-    return jsonify({
-        'bands': bands_list,
-        'total': total,
-        'skipped': skipped,
-        'reference_date': today.strftime('%d-%m-%Y')
-    })
+    return jsonify({'bands': bands_list, 'total': total, 'skipped': skipped, 'reference_date': today.strftime('%d-%m-%Y')})
 
 
 @app.route('/api/district-report')
 def district_report():
-    """
-    Use pandas value_counts to read eaas_users from eaas.db extremely fast.
-    Count the number of users, sort descending, limit to top 20.
-    Optionally filter by created_at using start/end date params (YYYY-MM-DD).
-    """
     start_date = request.args.get('start', '')
     end_date   = request.args.get('end', '')
-
     try:
-        df = get_customer_profiles_df()
-        if 'District' not in df.columns:
-            return jsonify({'error': 'District column not found in data source'}), 500
-
-        df = df[df['District'].notna() & (df['District'].astype(str).str.strip() != '')]
-        if start_date and 'created_at' in df.columns:
-            df = df[df['created_at'].astype(str).str[:10] >= start_date]
-        if end_date and 'created_at' in df.columns:
-            df = df[df['created_at'].astype(str).str[:10] <= end_date]
-
-        counts = df['District'].value_counts().head(20)
-        districts = [{'rank': i + 1, 'district': str(dist), 'count': int(count)} for i, (dist, count) in enumerate(counts.items())]
-        total_top_20 = int(counts.sum())
-
+        client = get_ch_client()
+        date_filter = ""
+        if start_date and end_date:
+            date_filter = f"AND substr(created_at, 1, 10) >= '{start_date}' AND substr(created_at, 1, 10) <= '{end_date}'"
+        query = f"""
+            SELECT state, count() as cnt
+            FROM loyalty_user_data
+            WHERE state != '' {date_filter}
+            GROUP BY state
+            ORDER BY cnt DESC
+            LIMIT 20
+        """
+        result = client.query(query)
+        districts = [{'rank': i+1, 'district': row[0], 'count': int(row[1])} for i, row in enumerate(result.result_rows)]
+        total_top_20 = sum(d['count'] for d in districts)
         return jsonify({'districts': districts, 'total': total_top_20})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print("district-report CH error:", e)
+        try:
+            df = get_customer_profiles_df()
+            col = 'District' if 'District' in df.columns else ('state' if 'state' in df.columns else None)
+            if col is None:
+                return jsonify({'districts': [], 'total': 0})
+            df = df[df[col].notna() & (df[col].astype(str).str.strip() != '')]
+            if start_date and 'created_at' in df.columns:
+                df = df[df['created_at'].astype(str).str[:10] >= start_date]
+            if end_date and 'created_at' in df.columns:
+                df = df[df['created_at'].astype(str).str[:10] <= end_date]
+            counts = df[col].value_counts().head(20)
+            districts = [{'rank': i+1, 'district': str(d), 'count': int(c)} for i, (d, c) in enumerate(counts.items())]
+            return jsonify({'districts': districts, 'total': int(counts.sum())})
+        except Exception as e2:
+            return jsonify({'error': str(e2)}), 500
 
 MONTH_NAMES = {
     1: 'January', 2: 'February', 3: 'March', 4: 'April',
@@ -344,23 +332,45 @@ MONTH_NAMES = {
 @app.route('/api/birth-month-summary')
 def birth_month_summary():
     try:
-        df = get_customer_profiles_df()
-        df = df[df['date_of_birth'].notna() & (df['date_of_birth'].astype(str).str.strip() != '')].copy()
-        df['month_num'] = df['date_of_birth'].astype(str).str.split('-').str[1]
-        df['month_num'] = pd.to_numeric(df['month_num'], errors='coerce')
-        df = df.dropna(subset=['month_num'])
-        df['month_num'] = df['month_num'].astype(int)
-        df = df[(df['month_num'] >= 1) & (df['month_num'] <= 12)]
-        counts = df['month_num'].value_counts().to_dict()
+        client = get_ch_client()
+        query = """
+            SELECT
+                toInt32OrZero(splitByChar('-', date_of_birth)[2]) as month_num,
+                count() as cnt
+            FROM loyalty_user_data
+            WHERE date_of_birth != '' AND length(date_of_birth) >= 8
+            GROUP BY month_num
+            HAVING month_num >= 1 AND month_num <= 12
+        """
+        result = client.query(query)
+        ch_counts = {int(row[0]): int(row[1]) for row in result.result_rows}
         results = []
         total = 0
         for i in range(1, 13):
-            count = int(counts.get(i, 0))
+            count = ch_counts.get(i, 0)
             total += count
             results.append({'month_id': i, 'month': MONTH_NAMES[i], 'count': count})
         return jsonify({'months': results, 'total': total})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print("birth-month CH error:", e)
+        try:
+            df = get_customer_profiles_df()
+            df = df[df['date_of_birth'].notna() & (df['date_of_birth'].astype(str).str.strip() != '')].copy()
+            df['month_num'] = df['date_of_birth'].astype(str).str.split('-').str[1]
+            df['month_num'] = pd.to_numeric(df['month_num'], errors='coerce')
+            df = df.dropna(subset=['month_num'])
+            df['month_num'] = df['month_num'].astype(int)
+            df = df[(df['month_num'] >= 1) & (df['month_num'] <= 12)]
+            counts = df['month_num'].value_counts().to_dict()
+            results = []
+            total = 0
+            for i in range(1, 13):
+                count = int(counts.get(i, 0))
+                total += count
+                results.append({'month_id': i, 'month': MONTH_NAMES[i], 'count': count})
+            return jsonify({'months': results, 'total': total})
+        except Exception as e2:
+            return jsonify({'error': str(e2)}), 500
 
 
 @app.route('/api/birth-month-export')
@@ -369,43 +379,78 @@ def birth_month_export():
         month_id = request.args.get('month', type=int)
         if not month_id or month_id < 1 or month_id > 12:
             return jsonify({'error': 'Invalid month parameter'}), 400
-        df = get_customer_profiles_df()
-        df = df[df['date_of_birth'].notna() & (df['date_of_birth'].astype(str).str.strip() != '')].copy()
-        df['month_num'] = df['date_of_birth'].astype(str).str.split('-').str[1]
-        df['month_num'] = pd.to_numeric(df['month_num'], errors='coerce')
-        df_month = df[df['month_num'] == month_id].copy()
-        df_month['name'] = df_month.get('firstname', pd.Series()).fillna('').astype(str) + ' ' + df_month.get('lastname', pd.Series()).fillna('').astype(str)
-        df_month['name'] = df_month['name'].str.strip()
-        df_month['phone'] = df_month.get('user_phone', pd.Series()).fillna('').astype(str)
-        df_month['dob'] = df_month['date_of_birth'].fillna('')
-        records = df_month[['name', 'phone', 'dob']].to_dict('records')
+        client = get_ch_client()
+        query = f"""
+            SELECT firstname, lastname, user_phone, date_of_birth
+            FROM loyalty_user_data
+            WHERE date_of_birth != ''
+            AND toInt32OrZero(splitByChar('-', date_of_birth)[2]) = {month_id}
+        """
+        result = client.query(query)
+        records = [{
+            'name': (str(r[0]) + ' ' + str(r[1])).strip(),
+            'phone': str(r[2]),
+            'dob': str(r[3])
+        } for r in result.result_rows]
         return jsonify({'data': records, 'month_name': MONTH_NAMES[month_id]})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print("birth-month-export CH error:", e)
+        try:
+            df = get_customer_profiles_df()
+            df = df[df['date_of_birth'].notna() & (df['date_of_birth'].astype(str).str.strip() != '')].copy()
+            df['month_num'] = df['date_of_birth'].astype(str).str.split('-').str[1]
+            df['month_num'] = pd.to_numeric(df['month_num'], errors='coerce')
+            df_month = df[df['month_num'] == month_id].copy()
+            df_month['name'] = df_month.get('firstname', pd.Series()).fillna('').astype(str) + ' ' + df_month.get('lastname', pd.Series()).fillna('').astype(str)
+            df_month['name'] = df_month['name'].str.strip()
+            df_month['phone'] = df_month.get('user_phone', pd.Series()).fillna('').astype(str)
+            df_month['dob'] = df_month['date_of_birth'].fillna('')
+            records = df_month[['name', 'phone', 'dob']].to_dict('records')
+            return jsonify({'data': records, 'month_name': MONTH_NAMES[month_id]})
+        except Exception as e2:
+            return jsonify({'error': str(e2)}), 500
 
 @app.route('/api/anniversary-month-summary')
 def anniversary_month_summary():
     try:
-        df = get_customer_profiles_df()
-        if 'wedding_anniversary' not in df.columns:
-            return jsonify({'months': [{"month_id": i, "month": MONTH_NAMES[i], "count": 0} for i in range(1,13)], 'total': 0})
-        df = df[df['wedding_anniversary'].notna()].copy()
-        df = df[df['wedding_anniversary'].astype(str).str.strip().str.lower().isin(['', 'null']) == False]
-        df['month_num'] = df['wedding_anniversary'].astype(str).str.split('-').str[1]
-        df['month_num'] = pd.to_numeric(df['month_num'], errors='coerce')
-        df = df.dropna(subset=['month_num'])
-        df['month_num'] = df['month_num'].astype(int)
-        df = df[(df['month_num'] >= 1) & (df['month_num'] <= 12)]
-        counts = df['month_num'].value_counts().to_dict()
+        client = get_ch_client()
+        query = """
+            SELECT
+                toInt32OrZero(splitByChar('-', wedding_anniversary)[2]) as month_num,
+                count() as cnt
+            FROM loyalty_user_data
+            WHERE wedding_anniversary != '' AND wedding_anniversary != 'null'
+            AND length(wedding_anniversary) >= 8
+            GROUP BY month_num
+            HAVING month_num >= 1 AND month_num <= 12
+        """
+        result = client.query(query)
+        ch_counts = {int(row[0]): int(row[1]) for row in result.result_rows}
         results = []
         total = 0
         for i in range(1, 13):
-            count = int(counts.get(i, 0))
+            count = ch_counts.get(i, 0)
             total += count
             results.append({'month_id': i, 'month': MONTH_NAMES[i], 'count': count})
         return jsonify({'months': results, 'total': total})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print("anniversary-month CH error:", e)
+        try:
+            df = get_customer_profiles_df()
+            if 'wedding_anniversary' not in df.columns:
+                return jsonify({'months': [{'month_id': i, 'month': MONTH_NAMES[i], 'count': 0} for i in range(1,13)], 'total': 0})
+            df = df[df['wedding_anniversary'].notna()].copy()
+            df = df[~df['wedding_anniversary'].astype(str).str.strip().str.lower().isin(['', 'null'])]
+            df['month_num'] = df['wedding_anniversary'].astype(str).str.split('-').str[1]
+            df['month_num'] = pd.to_numeric(df['month_num'], errors='coerce')
+            df = df.dropna(subset=['month_num'])
+            df['month_num'] = df['month_num'].astype(int)
+            df = df[(df['month_num'] >= 1) & (df['month_num'] <= 12)]
+            counts = df['month_num'].value_counts().to_dict()
+            results = [{'month_id': i, 'month': MONTH_NAMES[i], 'count': int(counts.get(i, 0))} for i in range(1, 13)]
+            return jsonify({'months': results, 'total': sum(r['count'] for r in results)})
+        except Exception as e2:
+            return jsonify({'error': str(e2)}), 500
 
 @app.route('/api/anniversary-month-export')
 def anniversary_month_export():
@@ -413,21 +458,38 @@ def anniversary_month_export():
         month_id = request.args.get('month', type=int)
         if not month_id or month_id < 1 or month_id > 12:
             return jsonify({'error': 'Invalid month parameter'}), 400
-        df = get_customer_profiles_df()
-        if 'wedding_anniversary' not in df.columns:
-            return jsonify({'data': [], 'month_name': MONTH_NAMES[month_id]})
-        df = df[df['wedding_anniversary'].notna()].copy()
-        df['month_num'] = df['wedding_anniversary'].astype(str).str.split('-').str[1]
-        df['month_num'] = pd.to_numeric(df['month_num'], errors='coerce')
-        df_month = df[df['month_num'] == month_id].copy()
-        df_month['name'] = df_month.get('firstname', pd.Series()).fillna('').astype(str) + ' ' + df_month.get('lastname', pd.Series()).fillna('').astype(str)
-        df_month['name'] = df_month['name'].str.strip()
-        df_month['phone'] = df_month.get('user_phone', pd.Series()).fillna('').astype(str)
-        df_month['anniversary'] = df_month['wedding_anniversary'].fillna('')
-        records = df_month[['name', 'phone', 'anniversary']].to_dict('records')
+        client = get_ch_client()
+        query = f"""
+            SELECT firstname, lastname, user_phone, wedding_anniversary
+            FROM loyalty_user_data
+            WHERE wedding_anniversary != '' AND wedding_anniversary != 'null'
+            AND toInt32OrZero(splitByChar('-', wedding_anniversary)[2]) = {month_id}
+        """
+        result = client.query(query)
+        records = [{
+            'name': (str(r[0]) + ' ' + str(r[1])).strip(),
+            'phone': str(r[2]),
+            'anniversary': str(r[3])
+        } for r in result.result_rows]
         return jsonify({'data': records, 'month_name': MONTH_NAMES[month_id]})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print("anniversary-export CH error:", e)
+        try:
+            df = get_customer_profiles_df()
+            if 'wedding_anniversary' not in df.columns:
+                return jsonify({'data': [], 'month_name': MONTH_NAMES[month_id]})
+            df = df[df['wedding_anniversary'].notna()].copy()
+            df['month_num'] = df['wedding_anniversary'].astype(str).str.split('-').str[1]
+            df['month_num'] = pd.to_numeric(df['month_num'], errors='coerce')
+            df_month = df[df['month_num'] == month_id].copy()
+            df_month['name'] = df_month.get('firstname', pd.Series()).fillna('').astype(str) + ' ' + df_month.get('lastname', pd.Series()).fillna('').astype(str)
+            df_month['name'] = df_month['name'].str.strip()
+            df_month['phone'] = df_month.get('user_phone', pd.Series()).fillna('').astype(str)
+            df_month['anniversary'] = df_month['wedding_anniversary'].fillna('')
+            records = df_month[['name', 'phone', 'anniversary']].to_dict('records')
+            return jsonify({'data': records, 'month_name': MONTH_NAMES[month_id]})
+        except Exception as e2:
+            return jsonify({'error': str(e2)}), 500
 _BASE_MOBILES_CACHE = None
 
 @app.route('/api/customer-classification')
