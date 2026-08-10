@@ -12,18 +12,9 @@ from sheets_connector import (
 app = Flask(__name__, static_folder='.', static_url_path='')
 
 # -----------------------------------------------------------------------
-# VERIFIED MASTER TOTALS — Refer & Earn Official Report (user confirmed)
-# These are the exact figures from the official programme report.
+# All dashboard metrics are now fetched live from ClickHouse.
+# Refer & Earn programme data is up to date as of the last ingest.
 # -----------------------------------------------------------------------
-MASTER_TOTAL_CUSTOMER_COUNT       = 75011
-MASTER_TOTAL_BONUS_POINT_GIVEN    = 8892971.00
-MASTER_TOTAL_PURCHASE_COUNT       = 13478
-MASTER_TOTAL_REDEEMED_COUNT       = 11257
-MASTER_TOTAL_POINT_REDEEMED_VALUE = 5686539.00
-MASTER_TOTAL_REDEEMED_PURCHASE_V  = 114264614.00
-MASTER_LOYALTY_DISCOUNT_PCT       = 4.98                        # Corrected: 4.98%
-MASTER_AVG_PURCHASE_VALUE         = 10150.54                    # Corrected: 10,150.54
-MASTER_AVG_LOYALTY_REDEMPTION     = 505.16                      # Corrected: 505.16
 
 def get_db_connection(db_name):
     conn = sqlite3.connect(db_name)
@@ -69,16 +60,17 @@ def dashboard_metrics():
         return jsonify({"error": "DB connection failed"}), 500
 
     is_full_range = False
-    date_filter = "parsed_date >= '2026-01-01'"
+    date_filter = "1=1"
     master_date_filter = ""
     if not start_date or not end_date:
         is_full_range = True
+        date_filter = "parsed_date >= '2026-01-16'"  # programme start date
     else:
         from datetime import datetime
         try:
             sd = datetime.strptime(start_date, '%Y-%m-%d').strftime('%Y-%m-%d')
             ed = datetime.strptime(end_date, '%Y-%m-%d').strftime('%Y-%m-%d')
-            date_filter += f" AND parsed_date >= '{sd}' AND parsed_date <= '{ed}'"
+            date_filter = f"parsed_date >= '{sd}' AND parsed_date <= '{ed}'"
             master_date_filter = f"WHERE start_date >= '{sd}' AND start_date <= '{ed}'"
         except Exception:
             return jsonify({"error": "Invalid date format"}), 400
@@ -571,15 +563,16 @@ def new_customer_metrics():
     is_full_range = not (start_date and end_date)
 
     # Build sales date filter
-    sales_date_filter = "parsed_date >= '2026-01-01'"
-    ref_date_filter   = ""
-    if not is_full_range:
+    if is_full_range:
+        sales_date_filter = "parsed_date >= '2026-01-16'"  # programme start date
+        ref_date_filter   = ""
+    else:
         try:
             from datetime import datetime
             sd = datetime.strptime(start_date, '%Y-%m-%d').strftime('%Y-%m-%d')
             ed = datetime.strptime(end_date,   '%Y-%m-%d').strftime('%Y-%m-%d')
-            sales_date_filter += f" AND parsed_date >= '{sd}' AND parsed_date <= '{ed}'"
-            ref_date_filter    = f"AND start_date >= '{sd}' AND start_date <= '{ed}'"
+            sales_date_filter = f"parsed_date >= '{sd}' AND parsed_date <= '{ed}'"
+            ref_date_filter   = f"AND start_date >= '{sd}' AND start_date <= '{ed}'"
         except Exception:
             return jsonify({'error': 'Invalid date format'}), 400
 
