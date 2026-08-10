@@ -34,6 +34,11 @@ document.addEventListener('DOMContentLoaded', async function () {
 
             if (!data || data.error) {
                 console.error('API error:', data ? data.error : 'no data');
+                document.querySelectorAll('.metric-card .card-value').forEach(el => {
+                    el.textContent = 'Error';
+                    el.style.opacity = '1';
+                    el.style.color = '#ef4444';
+                });
                 return;
             }
 
@@ -120,6 +125,11 @@ document.addEventListener('DOMContentLoaded', async function () {
             await fetchCustomerTrend(start, end);
         } catch (err) {
             console.error('Failed to fetch dashboard metrics:', err);
+            document.querySelectorAll('.metric-card .card-value').forEach(el => {
+                el.textContent = 'Error';
+                el.style.opacity = '1';
+                el.style.color = '#ef4444';
+            });
         } finally {
             document.body.style.cursor = 'default';
         }

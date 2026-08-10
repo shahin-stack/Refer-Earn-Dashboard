@@ -3,6 +3,7 @@ gunicorn
 pandas
 openpyxl
 clickhouse-connect
+gspread
 google-api-python-client
 google-auth
 google-auth-httplib2
