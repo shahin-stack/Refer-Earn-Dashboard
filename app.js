@@ -1103,12 +1103,19 @@ document.addEventListener('DOMContentLoaded', async function () {
             const newPctEl = document.getElementById('ccNewPct');
             if (newPctEl) newPctEl.textContent = data.new_pct + '%';
 
-            // ── Summary Table ──────────────────────────────────────────────
+            const noPurchaseEl = document.getElementById('ccNoPurchaseCount');
+            if (noPurchaseEl) noPurchaseEl.textContent = data.no_purchase_count.toLocaleString('en-IN');
+
+            const noPurchasePctEl = document.getElementById('ccNoPurchasePct');
+            if (noPurchasePctEl) noPurchasePctEl.textContent = data.no_purchase_pct + '%';
+
+            // ── Summary Table (3 rows) ──────────────────────────────────────
             const tbody = document.getElementById('classificationTableBody');
             if (tbody) {
                 const rows = [
-                    { type: '🔄 Repeat Customers', count: data.repeat_count, pct: data.repeat_pct, cls: 'repeat' },
-                    { type: '✨ New Customers',    count: data.new_count,    pct: data.new_pct,    cls: 'new'    }
+                    { type: '🔄 Repeat Customers',   count: data.repeat_count,      pct: data.repeat_pct,      cls: 'repeat'   },
+                    { type: '✨ New Customers',        count: data.new_count,         pct: data.new_pct,         cls: 'new'      },
+                    { type: '⏳ No Purchase Yet',      count: data.no_purchase_count, pct: data.no_purchase_pct, cls: 'nopurchase' }
                 ];
 
                 tbody.innerHTML = '';
@@ -1116,11 +1123,12 @@ document.addEventListener('DOMContentLoaded', async function () {
                     const tr = document.createElement('tr');
                     tr.style.opacity   = '0';
                     tr.style.transform = 'translateY(10px)';
+                    const pctColor = row.cls === 'repeat' ? '#f59e0b' : row.cls === 'new' ? '#10b981' : '#64748b';
                     tr.innerHTML = `
                         <td>${row.type}</td>
                         <td style="text-align:right;font-weight:700">${row.count.toLocaleString('en-IN')}</td>
                         <td style="text-align:right">
-                            <span class="${row.cls}-pct classif-pct">${row.pct}%</span>
+                            <span style="color:${pctColor};font-weight:600">${row.pct}%</span>
                         </td>
                     `;
                     tbody.appendChild(tr);
@@ -1135,7 +1143,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                 if (tableTotal) tableTotal.textContent = data.total_participants.toLocaleString('en-IN');
             }
 
-            // ── Doughnut Chart ─────────────────────────────────────────────
+            // ── Doughnut Chart (3 segments) ────────────────────────────────
             const ctx = document.getElementById('classificationDoughnut');
             if (ctx) {
                 if (classificationDoughnutInstance) classificationDoughnutInstance.destroy();
@@ -1143,11 +1151,11 @@ document.addEventListener('DOMContentLoaded', async function () {
                 classificationDoughnutInstance = new Chart(ctx.getContext('2d'), {
                     type: 'doughnut',
                     data: {
-                        labels: ['Repeat Customers', 'New Customers'],
+                        labels: ['Repeat Customers', 'New Customers', 'No Purchase Yet'],
                         datasets: [{
-                            data:            [data.repeat_count, data.new_count],
-                            backgroundColor: ['rgba(245,158,11,0.8)', 'rgba(16,185,129,0.8)'],
-                            borderColor:     ['#f59e0b', '#10b981'],
+                            data:            [data.repeat_count, data.new_count, data.no_purchase_count],
+                            backgroundColor: ['rgba(245,158,11,0.85)', 'rgba(16,185,129,0.85)', 'rgba(100,116,139,0.5)'],
+                            borderColor:     ['#f59e0b', '#10b981', '#64748b'],
                             borderWidth:     2,
                             hoverOffset:     10
                         }]
@@ -1195,12 +1203,13 @@ document.addEventListener('DOMContentLoaded', async function () {
         const sheetData = [
             ['Refer & Earn – Customer Classification Report', '', ''],
             ['Customer Type', 'Count', 'Share %'],
-            ['Repeat Customers', d.repeat_count, d.repeat_pct + '%'],
-            ['New Customers',    d.new_count,    d.new_pct    + '%'],
+            ['Repeat Customers',  d.repeat_count,      d.repeat_pct      + '%'],
+            ['New Customers',     d.new_count,         d.new_pct         + '%'],
+            ['No Purchase Yet',   d.no_purchase_count, d.no_purchase_pct + '%'],
             ['Total Participants', d.total_participants, '100%'],
             [],
-            ['Note: Repeat = made a purchase before August 1, 2026. New = no purchase record before August 1, 2026.', '', ''],
-            ['Pre-programme base size', d.base_size, '']
+            ['Note: Repeat = purchased before Aug 1 2026. New = first purchase on/after Aug 1 2026. No Purchase Yet = R&E member with no sales record.', '', ''],
+            ['Pre-programme base size (unique buyers before Aug 1)', d.base_size, '']
         ];
 
         const ws = XLSX.utils.aoa_to_sheet(sheetData);

@@ -438,6 +438,7 @@
                             <span class="classif-label">Repeat Customers</span>
                             <span class="classif-value" id="ccRepeatCount">—</span>
                             <span class="classif-pct repeat-pct" id="ccRepeatPct">—%</span>
+                            <span class="classif-sub">Purchased before Aug 1, 2026</span>
                         </div>
                     </div>
                     <div class="glass classif-card classif-new">
@@ -446,6 +447,16 @@
                             <span class="classif-label">New Customers</span>
                             <span class="classif-value" id="ccNewCount">—</span>
                             <span class="classif-pct new-pct" id="ccNewPct">—%</span>
+                            <span class="classif-sub">First purchase on/after Aug 1</span>
+                        </div>
+                    </div>
+                    <div class="glass classif-card classif-nopurchase">
+                        <div class="classif-icon">⏳</div>
+                        <div class="classif-info">
+                            <span class="classif-label">No Purchase Yet</span>
+                            <span class="classif-value" id="ccNoPurchaseCount">—</span>
+                            <span class="classif-pct" id="ccNoPurchasePct" style="color:#64748b;">—%</span>
+                            <span class="classif-sub">R&amp;E member, no sales record</span>
                         </div>
                     </div>
                 </div>
@@ -494,8 +505,10 @@
                             </tfoot>
                         </table>
                         <div class="classif-note">
-                            <strong>Note:</strong> <strong>Repeat</strong> = made a purchase before August 1, 2026 (existing customers).
-                            <strong>New</strong> = no purchase record before August 1, 2026 (first-time buyers from August 2026 onwards).
+                            <strong>Note:</strong>
+                            <strong>Repeat</strong> = purchased before August 1, 2026 (existing customers) &nbsp;·&nbsp;
+                            <strong>New</strong> = first purchase on or after August 1, 2026 (no prior purchase) &nbsp;·&nbsp;
+                            <strong>No Purchase Yet</strong> = joined R&amp;E programme but no purchase record in sales data.
                         </div>
                     </div>
                 </div>

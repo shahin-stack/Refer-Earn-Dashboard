@@ -523,46 +523,61 @@ def customer_classification():
                   AND customer_mobile_number IS NOT NULL
             ),
 
-            -- Step 2: All mobiles with at least one purchase on or before July 31, 2026
-            --         (these are "Repeat" customers per the cutoff definition)
+            -- Step 2: Mobiles with at least one purchase BEFORE August 1, 2026 = Repeat
             repeat_base AS (
                 SELECT DISTINCT
                     {_normalize_mob_expr('customer_mobile')} AS mob
                 FROM sales_data
                 WHERE parsed_date <= '{CLASSIFICATION_CUTOFF}'
                   AND customer_mobile != ''
+            ),
+
+            -- Step 3: Mobiles with at least one purchase ON or AFTER August 1, 2026
+            aug_buyers AS (
+                SELECT DISTINCT
+                    {_normalize_mob_expr('customer_mobile')} AS mob
+                FROM sales_data
+                WHERE parsed_date >= '2026-08-01'
+                  AND customer_mobile != ''
             )
 
-            -- Step 3: Classify every R&E participant
-            --   Repeat = mob found in repeat_base
-            --   New    = mob NOT found in repeat_base
-            --   Total  = Repeat + New (guaranteed, no gaps)
+            -- Step 4: Classify every R&E participant into 3 groups
+            --   Repeat          = bought before Aug 1 (may also have bought after)
+            --   New             = did NOT buy before Aug 1, BUT bought on/after Aug 1
+            --   No Purchase Yet = no purchase in sales_data at all
             SELECT
-                count()                                                   AS total_participants,
-                countIf(mob IN (SELECT mob FROM repeat_base))             AS repeat_customers,
-                countIf(mob NOT IN (SELECT mob FROM repeat_base))         AS new_customers,
-                (SELECT count() FROM repeat_base)                         AS base_size
+                count()                                                              AS total_participants,
+                countIf(mob IN (SELECT mob FROM repeat_base))                        AS repeat_count,
+                countIf(mob NOT IN (SELECT mob FROM repeat_base)
+                    AND mob IN (SELECT mob FROM aug_buyers))                          AS new_count,
+                countIf(mob NOT IN (SELECT mob FROM repeat_base)
+                    AND mob NOT IN (SELECT mob FROM aug_buyers))                      AS no_purchase_count,
+                (SELECT count() FROM repeat_base)                                     AS base_size
             FROM re_participants
         """
 
         row = client.query(query).result_rows[0]
-        total_participants = int(row[0])
-        repeat_count       = int(row[1])
-        new_count          = int(row[2])
-        base_size          = int(row[3])
+        total_participants  = int(row[0])
+        repeat_count        = int(row[1])
+        new_count           = int(row[2])
+        no_purchase_count   = int(row[3])
+        base_size           = int(row[4])
 
-        # Percentages — new_pct derived from repeat_pct to guarantee they sum to 100%
-        repeat_pct = round(repeat_count / total_participants * 100, 2) if total_participants else 0
-        new_pct    = round(100 - repeat_pct, 2)
+        # Percentages out of total 91,550
+        repeat_pct      = round(repeat_count      / total_participants * 100, 2) if total_participants else 0
+        new_pct         = round(new_count         / total_participants * 100, 2) if total_participants else 0
+        no_purchase_pct = round(no_purchase_count / total_participants * 100, 2) if total_participants else 0
 
         return jsonify({
-            'total_participants': total_participants,
-            'repeat_count':       repeat_count,
-            'new_count':          new_count,
-            'repeat_pct':         repeat_pct,
-            'new_pct':            new_pct,
-            'base_size':          base_size,
-            'cutoff_date':        CLASSIFICATION_CUTOFF
+            'total_participants':  total_participants,
+            'repeat_count':        repeat_count,
+            'new_count':           new_count,
+            'no_purchase_count':   no_purchase_count,
+            'repeat_pct':          repeat_pct,
+            'new_pct':             new_pct,
+            'no_purchase_pct':     no_purchase_pct,
+            'base_size':           base_size,
+            'cutoff_date':         CLASSIFICATION_CUTOFF
         })
     except Exception as e:
         import traceback
