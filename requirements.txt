@@ -1,0 +1,8 @@
+flask
+gunicorn
+pandas
+openpyxl
+clickhouse-connect
+google-api-python-client
+google-auth
+google-auth-httplib2

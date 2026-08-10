@@ -25,7 +25,26 @@ credentials/
 
 # Logs & output
 *.log
-*.txt
+audit_results.txt
+counts_check.txt
+db_output.txt
+debug_output.txt
+debug_utf8.txt
+files_list_log.txt
+final_report_summary.txt
+ingest_log.txt
+inspect_out2.txt
+inspect_output.txt
+names.txt
+og_results.txt
+og_results2.txt
+out.txt
+report_output.txt
+schema_result.txt
+schema_result2.txt
+tables_output.txt
+verify_fix.txt
+verify_log.txt
 output/
 uploads/
 
