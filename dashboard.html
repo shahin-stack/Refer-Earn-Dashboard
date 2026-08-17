@@ -409,7 +409,7 @@
                         <h2 class="section-title" style="margin-bottom:0.25rem;">Customer Classification</h2>
                         <p class="page-subtitle">
                             Refer &amp; Earn participants classified as Repeat vs New customers
-                            &nbsp;·&nbsp; Cutoff: <strong>August 1, 2026</strong> &nbsp;·&nbsp; matched on <strong>Customer Mobile</strong>
+                            &nbsp;·&nbsp; Date range: <strong id="ccCutoffDisplay">Loading…</strong> &nbsp;·&nbsp; matched on <strong>Customer Mobile</strong>
                         </p>
                     </div>
                     <button class="btn-district-export" id="classificationExportBtn" title="Export classification report to Excel">
@@ -438,7 +438,7 @@
                             <span class="classif-label">Repeat Customers</span>
                             <span class="classif-value" id="ccRepeatCount">—</span>
                             <span class="classif-pct repeat-pct" id="ccRepeatPct">—%</span>
-                            <span class="classif-sub">Purchased before Aug 1, 2026</span>
+                            <span class="classif-sub" id="ccRepeatSub">Purchased before selected date</span>
                         </div>
                     </div>
                     <div class="glass classif-card classif-new">
@@ -447,16 +447,7 @@
                             <span class="classif-label">New Customers</span>
                             <span class="classif-value" id="ccNewCount">—</span>
                             <span class="classif-pct new-pct" id="ccNewPct">—%</span>
-                            <span class="classif-sub">First purchase on/after Aug 1</span>
-                        </div>
-                    </div>
-                    <div class="glass classif-card classif-nopurchase">
-                        <div class="classif-icon">⏳</div>
-                        <div class="classif-info">
-                            <span class="classif-label">No Purchase Yet</span>
-                            <span class="classif-value" id="ccNoPurchaseCount">—</span>
-                            <span class="classif-pct" id="ccNoPurchasePct" style="color:#64748b;">—%</span>
-                            <span class="classif-sub">R&amp;E member, no sales record</span>
+                            <span class="classif-sub" id="ccNewSub">First purchase on/after selected date</span>
                         </div>
                     </div>
                 </div>
@@ -506,9 +497,12 @@
                         </table>
                         <div class="classif-note">
                             <strong>Note:</strong>
-                            <strong>Repeat</strong> = purchased before August 1, 2026 (existing customers) &nbsp;·&nbsp;
-                            <strong>New</strong> = first purchase on or after August 1, 2026 (no prior purchase) &nbsp;·&nbsp;
-                            <strong>No Purchase Yet</strong> = joined R&amp;E programme but no purchase record in sales data.
+                            Classification is <strong>dynamic</strong> based on the selected date range.
+                            &nbsp;·&nbsp;
+                            <strong>Repeat</strong> = customer had at least one purchase <em>before</em> the selected start date (existing buyer).
+                            &nbsp;·&nbsp;
+                            <strong>New</strong> = the selected start date is the customer's <em>first-ever</em> purchase date (no prior purchase history).
+                            Percentages are out of buyers in the selected range.
                         </div>
                     </div>
                 </div>

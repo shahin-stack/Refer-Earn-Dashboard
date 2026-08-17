@@ -484,11 +484,9 @@ def anniversary_month_export():
             return jsonify({'error': str(e2)}), 500
 _BASE_MOBILES_CACHE = None
 
-# ── Classification cutoff: August 1, 2026 ────────────────────────────────────
-# Repeat Customer : has at least one purchase on or BEFORE July 31, 2026
-# New Customer    : has NO purchase before Aug 1 AND first purchase on/after Aug 1
-# No Purchase Yet : R&E member with zero purchase records in sales_data
-CLASSIFICATION_CUTOFF = '2026-07-31'   # inclusive upper bound for Repeat
+# ── Repeat cutoff used by new-customer-metrics (legacy fallback) ─────────────
+# This is the programme start boundary used when no date filter is selected.
+REPEAT_CUTOFF_DATE = '2026-07-31'   # day before programme launch
 
 def _normalize_mob_expr(col):
     """
@@ -520,25 +518,48 @@ def _normalize_mob_expr(col):
 @app.route('/api/customer-classification')
 def customer_classification():
     """
-    Classify all 91,550 Refer & Earn participants into Repeat vs New.
+    Dynamically classify R&E participants as New or Repeat based on the
+    selected filter date range.
 
-    Specification:
-      - Repeat Customer : mobile appears in sales_data with parsed_date <= 2026-07-31
-                          (purchased at least once on or before July 31, 2026)
-      - New Customer    : mobile does NOT appear in sales_data before August 1, 2026
-                          (no purchase history before the cutoff)
+    Logic (per the user spec):
+      - Repeat Customer : the customer has at least one purchase BEFORE the
+                          filter start date (sd). They are an existing buyer.
+      - New Customer    : the filter start date (sd) is on or after their
+                          first-ever purchase date AND they have no purchase
+                          before sd.  i.e. first_purchase_date >= sd.
 
-    Match key   : Customer Mobile (normalized — trailing .0 stripped)
-    Data sources: refer_point_data (R&E participants) + sales_data (purchase history)
-    Guarantee   : Repeat + New = Total Participants (no unclassified records)
+    Only customers who made at least one purchase within [sd, ed] AND are
+    R&E participants are counted.  "No Purchase Yet" is excluded entirely.
+
+    Match key   : Customer Mobile (normalized to 10-digit Indian format)
+    Data sources: refer_point_data (R&E members) + sales_data (purchase history)
     """
+    from datetime import datetime
+    start_date = request.args.get('start', '')
+    end_date   = request.args.get('end', '')
+
+    # Default: programme full range when no filter is applied
+    if start_date and end_date:
+        try:
+            sd = datetime.strptime(start_date, '%Y-%m-%d').strftime('%Y-%m-%d')
+            ed = datetime.strptime(end_date,   '%Y-%m-%d').strftime('%Y-%m-%d')
+        except Exception:
+            return jsonify({'error': 'Invalid date format'}), 400
+    else:
+        sd = '2026-01-16'   # programme launch date
+        ed = datetime.today().strftime('%Y-%m-%d')
+
     try:
         client = get_ch_client()
 
+        mob_sd = _normalize_mob_expr('sd.customer_mobile')
+        mob_fp = _normalize_mob_expr('fp.customer_mobile')
+        mob_re = _normalize_mob_expr('customer_mobile_number')
+        mob_s  = _normalize_mob_expr('customer_mobile')
+
         query = f"""
             WITH
-            -- Step 1: All unique R&E participant mobiles, normalized to 10 digits
-            --   refer_point_data mobiles are already 10-digit clean
+            -- All R&E participant mobiles (normalized)
             re_participants AS (
                 SELECT DISTINCT
                     {_normalize_mob_expr('customer_mobile_number')} AS mob
@@ -548,64 +569,68 @@ def customer_classification():
                   AND length({_normalize_mob_expr('customer_mobile_number')}) = 10
             ),
 
-            -- Step 2: Repeat base = mobiles with at least one purchase <= July 31, 2026
-            --   sales_data has some 12-digit mobiles with 91 prefix → normalized to 10
-            repeat_base AS (
-                SELECT DISTINCT
-                    {_normalize_mob_expr('customer_mobile')} AS mob
+            -- First-ever purchase date per customer across ALL of sales_data
+            first_purchase AS (
+                SELECT
+                    {_normalize_mob_expr('customer_mobile')} AS mob,
+                    min(parsed_date) AS first_date
                 FROM sales_data
-                WHERE parsed_date <= '{CLASSIFICATION_CUTOFF}'
-                  AND customer_mobile != ''
+                WHERE customer_mobile != ''
                   AND length({_normalize_mob_expr('customer_mobile')}) = 10
+                GROUP BY mob
             ),
 
-            -- Step 3: Aug buyers = mobiles with at least one purchase >= August 1, 2026
-            aug_buyers AS (
+            -- R&E participants who purchased within the selected date range
+            in_range_buyers AS (
                 SELECT DISTINCT
                     {_normalize_mob_expr('customer_mobile')} AS mob
                 FROM sales_data
-                WHERE parsed_date >= '2026-08-01'
+                WHERE parsed_date >= '{sd}'
+                  AND parsed_date <= '{ed}'
                   AND customer_mobile != ''
                   AND length({_normalize_mob_expr('customer_mobile')}) = 10
+                  AND {_normalize_mob_expr('customer_mobile')} IN (SELECT mob FROM re_participants)
             )
 
-            -- Step 4: Classify every R&E participant — mutually exclusive groups
-            --   Repeat          = bought on or before July 31, 2026
-            --   New             = first purchase on or after August 1, 2026 (no prior purchase)
-            --   No Purchase Yet = no purchase record in sales_data at all
+            -- Classify each in-range buyer:
+            --   New    = their first-ever purchase date >= sd (no prior purchase)
+            --   Repeat = their first-ever purchase date <  sd (bought before this range)
             SELECT
-                count()                                                              AS total_participants,
-                countIf(mob IN (SELECT mob FROM repeat_base))                        AS repeat_count,
-                countIf(mob NOT IN (SELECT mob FROM repeat_base)
-                    AND mob IN (SELECT mob FROM aug_buyers))                          AS new_count,
-                countIf(mob NOT IN (SELECT mob FROM repeat_base)
-                    AND mob NOT IN (SELECT mob FROM aug_buyers))                      AS no_purchase_count,
-                (SELECT count() FROM repeat_base)                                     AS base_size
-            FROM re_participants
+                count()                                AS total_buyers,
+                countIf(fp.first_date >= '{sd}')       AS new_count,
+                countIf(fp.first_date <  '{sd}')       AS repeat_count
+            FROM in_range_buyers irb
+            LEFT JOIN first_purchase fp ON irb.mob = fp.mob
         """
 
         row = client.query(query).result_rows[0]
-        total_participants  = int(row[0])
-        repeat_count        = int(row[1])
-        new_count           = int(row[2])
-        no_purchase_count   = int(row[3])
-        base_size           = int(row[4])
+        total_buyers  = int(row[0]) if row[0] else 0
+        new_count     = int(row[1]) if row[1] else 0
+        repeat_count  = int(row[2]) if row[2] else 0
 
-        # Percentages out of total 91,550
-        repeat_pct      = round(repeat_count      / total_participants * 100, 2) if total_participants else 0
-        new_pct         = round(new_count         / total_participants * 100, 2) if total_participants else 0
-        no_purchase_pct = round(no_purchase_count / total_participants * 100, 2) if total_participants else 0
+        # Percentages are out of buyers in range (Repeat + New = total_buyers)
+        repeat_pct = round(repeat_count / total_buyers * 100, 2) if total_buyers else 0
+        new_pct    = round(new_count    / total_buyers * 100, 2) if total_buyers else 0
+
+        # Total R&E participants (always 91,550 reference)
+        total_re_query = f"""
+            SELECT count(DISTINCT {_normalize_mob_expr('customer_mobile_number')}) AS cnt
+            FROM refer_point_data
+            WHERE customer_mobile_number != ''
+              AND length({_normalize_mob_expr('customer_mobile_number')}) = 10
+        """
+        re_row = client.query(total_re_query).result_rows[0]
+        total_re_participants = int(re_row[0]) if re_row[0] else 0
 
         return jsonify({
-            'total_participants':  total_participants,
+            'total_participants':  total_re_participants,   # full R&E base (for header card)
+            'total_buyers':        total_buyers,            # buyers in selected range
             'repeat_count':        repeat_count,
             'new_count':           new_count,
-            'no_purchase_count':   no_purchase_count,
             'repeat_pct':          repeat_pct,
             'new_pct':             new_pct,
-            'no_purchase_pct':     no_purchase_pct,
-            'base_size':           base_size,
-            'cutoff_date':         CLASSIFICATION_CUTOFF
+            'cutoff_date':         sd,                      # dynamic – the filter start date
+            'date_range':          {'start': sd, 'end': ed}
         })
     except Exception as e:
         import traceback

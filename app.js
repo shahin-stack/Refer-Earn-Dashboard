@@ -1072,8 +1072,12 @@ document.addEventListener('DOMContentLoaded', async function () {
     let classificationData = null;
 
     async function loadCustomerClassification() {
+        const start = dateFrom.value;
+        const end   = dateTo.value;
+        const params = (start && end) ? `?start=${start}&end=${end}` : '';
+
         try {
-            const res  = await fetch('/api/customer-classification');
+            const res  = await fetch(`/api/customer-classification${params}`);
             const data = await res.json();
 
             if (data.error) {
@@ -1083,13 +1087,29 @@ document.addEventListener('DOMContentLoaded', async function () {
 
             classificationData = data;
 
-            // ── KPI Cards ──────────────────────────────────────────────────
+            // ── Dynamic subtitle ─────────────────────────────────────────────
+            function fmtCutoff(dateStr) {
+                const months = ['January','February','March','April','May','June',
+                                'July','August','September','October','November','December'];
+                const [y, m, d] = dateStr.split('-');
+                return `${months[parseInt(m,10)-1]} ${parseInt(d,10)}, ${y}`;
+            }
+            const cutoffEl = document.getElementById('ccCutoffDisplay');
+            if (cutoffEl && data.cutoff_date) {
+                const endFmt   = fmtCutoff(data.date_range.end);
+                const startFmt = fmtCutoff(data.cutoff_date);
+                cutoffEl.textContent = `${startFmt} – ${endFmt}`;
+            }
+
+            // ── KPI Cards ────────────────────────────────────────────────────
             const totalEl = document.getElementById('ccTotalParticipants');
             if (totalEl) totalEl.textContent = data.total_participants.toLocaleString('en-IN');
 
             const baseSizeEl = document.getElementById('ccBaseSize');
-            if (baseSizeEl) baseSizeEl.textContent =
-                `Pre-programme base: ${data.base_size.toLocaleString('en-IN')} unique customers`;
+            if (baseSizeEl) {
+                const buyers = (data.total_buyers || 0).toLocaleString('en-IN');
+                baseSizeEl.textContent = `${buyers} purchased in selected range`;
+            }
 
             const repeatEl = document.getElementById('ccRepeatCount');
             if (repeatEl) repeatEl.textContent = data.repeat_count.toLocaleString('en-IN');
@@ -1097,25 +1117,28 @@ document.addEventListener('DOMContentLoaded', async function () {
             const repeatPctEl = document.getElementById('ccRepeatPct');
             if (repeatPctEl) repeatPctEl.textContent = data.repeat_pct + '%';
 
+            const repeatSubEl = document.getElementById('ccRepeatSub');
+            if (repeatSubEl && data.cutoff_date) {
+                repeatSubEl.textContent = `Purchased before ${fmtCutoff(data.cutoff_date)}`;
+            }
+
             const newEl = document.getElementById('ccNewCount');
             if (newEl) newEl.textContent = data.new_count.toLocaleString('en-IN');
 
             const newPctEl = document.getElementById('ccNewPct');
             if (newPctEl) newPctEl.textContent = data.new_pct + '%';
 
-            const noPurchaseEl = document.getElementById('ccNoPurchaseCount');
-            if (noPurchaseEl) noPurchaseEl.textContent = data.no_purchase_count.toLocaleString('en-IN');
+            const newSubEl = document.getElementById('ccNewSub');
+            if (newSubEl && data.cutoff_date) {
+                newSubEl.textContent = `First purchase on/after ${fmtCutoff(data.cutoff_date)}`;
+            }
 
-            const noPurchasePctEl = document.getElementById('ccNoPurchasePct');
-            if (noPurchasePctEl) noPurchasePctEl.textContent = data.no_purchase_pct + '%';
-
-            // ── Summary Table (3 rows) ──────────────────────────────────────
+            // ── Summary Table (2 rows) ────────────────────────────────────────
             const tbody = document.getElementById('classificationTableBody');
             if (tbody) {
                 const rows = [
-                    { type: '🔄 Repeat Customers',   count: data.repeat_count,      pct: data.repeat_pct,      cls: 'repeat'   },
-                    { type: '✨ New Customers',        count: data.new_count,         pct: data.new_pct,         cls: 'new'      },
-                    { type: '⏳ No Purchase Yet',      count: data.no_purchase_count, pct: data.no_purchase_pct, cls: 'nopurchase' }
+                    { type: '🔄 Repeat Customers', count: data.repeat_count, pct: data.repeat_pct, cls: 'repeat' },
+                    { type: '✨ New Customers',     count: data.new_count,    pct: data.new_pct,    cls: 'new'    }
                 ];
 
                 tbody.innerHTML = '';
@@ -1123,7 +1146,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                     const tr = document.createElement('tr');
                     tr.style.opacity   = '0';
                     tr.style.transform = 'translateY(10px)';
-                    const pctColor = row.cls === 'repeat' ? '#f59e0b' : row.cls === 'new' ? '#10b981' : '#64748b';
+                    const pctColor = row.cls === 'repeat' ? '#f59e0b' : '#10b981';
                     tr.innerHTML = `
                         <td>${row.type}</td>
                         <td style="text-align:right;font-weight:700">${row.count.toLocaleString('en-IN')}</td>
@@ -1140,10 +1163,10 @@ document.addEventListener('DOMContentLoaded', async function () {
                 });
 
                 const tableTotal = document.getElementById('ccTableTotal');
-                if (tableTotal) tableTotal.textContent = data.total_participants.toLocaleString('en-IN');
+                if (tableTotal) tableTotal.textContent = (data.total_buyers || 0).toLocaleString('en-IN');
             }
 
-            // ── Doughnut Chart (3 segments) ────────────────────────────────
+            // ── Doughnut Chart (2 segments: Repeat + New) ─────────────────────
             const ctx = document.getElementById('classificationDoughnut');
             if (ctx) {
                 if (classificationDoughnutInstance) classificationDoughnutInstance.destroy();
@@ -1151,11 +1174,11 @@ document.addEventListener('DOMContentLoaded', async function () {
                 classificationDoughnutInstance = new Chart(ctx.getContext('2d'), {
                     type: 'doughnut',
                     data: {
-                        labels: ['Repeat Customers', 'New Customers', 'No Purchase Yet'],
+                        labels: ['Repeat Customers', 'New Customers'],
                         datasets: [{
-                            data:            [data.repeat_count, data.new_count, data.no_purchase_count],
-                            backgroundColor: ['rgba(245,158,11,0.85)', 'rgba(16,185,129,0.85)', 'rgba(100,116,139,0.5)'],
-                            borderColor:     ['#f59e0b', '#10b981', '#64748b'],
+                            data:            [data.repeat_count, data.new_count],
+                            backgroundColor: ['rgba(245,158,11,0.85)', 'rgba(16,185,129,0.85)'],
+                            borderColor:     ['#f59e0b', '#10b981'],
                             borderWidth:     2,
                             hoverOffset:     10
                         }]
@@ -1176,7 +1199,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                                 padding: 12,
                                 callbacks: {
                                     label: ctx => {
-                                        const val = ctx.parsed;
+                                        const val   = ctx.parsed;
                                         const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
                                         const pct   = ((val / total) * 100).toFixed(2);
                                         return ` ${val.toLocaleString('en-IN')} (${pct}%)`;
@@ -1193,27 +1216,31 @@ document.addEventListener('DOMContentLoaded', async function () {
         }
     }
 
-    // ─── Classification Excel Export ─────────────────────────────────────────
+    // ─── Classification Excel Export ───────────────────────────────────────────────────
     document.getElementById('classificationExportBtn')?.addEventListener('click', () => {
         if (!classificationData) return;
 
         const d = classificationData;
         const dateStr = new Date().toISOString().split('T')[0];
 
+        const rangeNote = d.date_range
+            ? `Date range: ${d.date_range.start} to ${d.date_range.end}`
+            : '';
+
         const sheetData = [
             ['Refer & Earn – Customer Classification Report', '', ''],
             ['Customer Type', 'Count', 'Share %'],
-            ['Repeat Customers',  d.repeat_count,      d.repeat_pct      + '%'],
-            ['New Customers',     d.new_count,         d.new_pct         + '%'],
-            ['No Purchase Yet',   d.no_purchase_count, d.no_purchase_pct + '%'],
-            ['Total Participants', d.total_participants, '100%'],
+            ['Repeat Customers', d.repeat_count, d.repeat_pct + '%'],
+            ['New Customers',    d.new_count,    d.new_pct    + '%'],
+            ['Total Buyers (in range)', d.total_buyers || (d.repeat_count + d.new_count), '100%'],
             [],
-            ['Note: Repeat = purchased before Aug 1 2026. New = first purchase on/after Aug 1 2026. No Purchase Yet = R&E member with no sales record.', '', ''],
-            ['Pre-programme base size (unique buyers before Aug 1)', d.base_size, '']
+            [`Note: Repeat = had a purchase before ${d.cutoff_date}. New = first-ever purchase is on/after ${d.cutoff_date}. Classification is dynamic based on selected filter date.`, '', ''],
+            [rangeNote, '', ''],
+            ['Total R&E Participants (programme base)', d.total_participants, '']
         ];
 
         const ws = XLSX.utils.aoa_to_sheet(sheetData);
-        ws['!cols'] = [{ wch: 36 }, { wch: 18 }, { wch: 12 }];
+        ws['!cols'] = [{ wch: 50 }, { wch: 18 }, { wch: 12 }];
 
         const themeBlue = '1F497D';
         const themeBg   = 'DCE6F1';
@@ -1247,7 +1274,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         XLSX.writeFile(wb, `Customer_Classification_${dateStr}.xlsx`);
     });
 
-    // ─── Reload classification every time its tab is clicked ────────────────
+    // ─── Reload classification every time its tab is clicked ───────────────────────
     document.querySelectorAll('.tab-link').forEach(link => {
         link.addEventListener('click', () => {
             if (link.getAttribute('data-target') === 'customerClassificationSection') {
@@ -1258,4 +1285,9 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     // Also load immediately on page load so data is ready
     loadCustomerClassification();
+
+    // Re-run classification when main Apply filter button is clicked
+    if (mainApplyFilter) {
+        mainApplyFilter.addEventListener('click', loadCustomerClassification);
+    }
 });
