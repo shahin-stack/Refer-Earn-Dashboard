@@ -286,10 +286,10 @@ def district_report():
         if start_date and end_date:
             date_filter = f"AND substr(created_at, 1, 10) >= '{start_date}' AND substr(created_at, 1, 10) <= '{end_date}'"
         query = f"""
-            SELECT state, count() as cnt
+            SELECT district, count() as cnt
             FROM loyalty_user_data
-            WHERE state != '' {date_filter}
-            GROUP BY state
+            WHERE district != '' {date_filter}
+            GROUP BY district
             ORDER BY cnt DESC
             LIMIT 20
         """
