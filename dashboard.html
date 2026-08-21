@@ -60,24 +60,30 @@
                     <p class="page-subtitle">Loyalty analytics and redemption performance</p>
                 </div>
                 <div class="header-right">
-                    <div class="filter-controls">
-                        <div class="filter-group">
-                            <label for="dateFrom">From</label>
-                            <input type="date" id="dateFrom">
-                        </div>
-                        <div class="filter-group">
-                            <label for="dateTo">To</label>
-                            <input type="date" id="dateTo">
-                        </div>
-                        <button class="sdf-apply-btn" id="mainApplyFilter" style="align-self: center;">Apply</button>
-                    </div>
+
                     <button class="btn-primary" id="exportBtn">Export to Excel</button>
                 </div>
             </header>
 
             <section class="section first-section tab-section active-tab" id="overviewSection">
-                <div class="section-badge">Section 01</div>
-                <h2 class="section-title">Core Performance Metrics</h2>
+                <div class="district-section-header">
+                    <div class="district-section-meta">
+                        <div class="section-badge">Section 01</div>
+                        <h2 class="section-title" style="margin-bottom:0.25rem;">Core Performance Metrics</h2>
+                        <div class="section-date-filter">
+                            <div class="sdf-group">
+                                <label for="overviewFrom">From</label>
+                                <input type="date" id="overviewFrom" class="sdf-input">
+                            </div>
+                            <div class="sdf-group">
+                                <label for="overviewTo">To</label>
+                                <input type="date" id="overviewTo" class="sdf-input">
+                            </div>
+                            <button class="sdf-apply-btn" id="overviewApplyFilter">Apply</button>
+                            <button class="sdf-clear-btn" id="overviewClearFilter">Clear</button>
+                        </div>
+                    </div>
+                </div>
                 
                 <div class="metrics-grid">
                     <!-- Metric Card: Total Customers -->
@@ -411,6 +417,18 @@
                             Refer &amp; Earn participants classified as Repeat vs New customers
                             &nbsp;·&nbsp; Date range: <strong id="ccCutoffDisplay">Loading…</strong> &nbsp;·&nbsp; matched on <strong>Customer Mobile</strong>
                         </p>
+                        <div class="section-date-filter">
+                            <div class="sdf-group">
+                                <label for="ccFrom">From</label>
+                                <input type="date" id="ccFrom" class="sdf-input">
+                            </div>
+                            <div class="sdf-group">
+                                <label for="ccTo">To</label>
+                                <input type="date" id="ccTo" class="sdf-input">
+                            </div>
+                            <button class="sdf-apply-btn" id="ccApplyFilter">Apply</button>
+                            <button class="sdf-clear-btn" id="ccClearFilter">Clear</button>
+                        </div>
                     </div>
                     <button class="btn-district-export" id="classificationExportBtn" title="Export classification report to Excel">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
@@ -425,11 +443,11 @@
                 <!-- KPI Summary Cards -->
                 <div class="classification-kpi-row">
                     <div class="glass classif-card classif-total">
-                        <div class="classif-icon">👥</div>
+                        <div class="classif-icon">🛒</div>
                         <div class="classif-info">
-                            <span class="classif-label">Total R&amp;E Participants</span>
-                            <span class="classif-value" id="ccTotalParticipants">—</span>
-                            <span class="classif-sub" id="ccBaseSize">Base dataset loading…</span>
+                            <span class="classif-label">Purchased in Selected Range</span>
+                            <span class="classif-value" id="ccBaseSize">—</span>
+                            <span class="classif-sub">Unique buyers within date range</span>
                         </div>
                     </div>
                     <div class="glass classif-card classif-repeat">
@@ -510,8 +528,25 @@
 
             <!-- ── Section 07 : New Customer Metrics ──────────────── -->
             <section class="section tab-section" id="newCustomerMetricsSection">
-                <div class="section-badge">Section 07</div>
-                <h2 class="section-title">New Customer Performance Metrics</h2>
+                <div class="district-section-header">
+                    <div class="district-section-meta">
+                        <div class="section-badge">Section 07</div>
+                        <h2 class="section-title" style="margin-bottom:0.25rem;">New Customer Performance Metrics</h2>
+                        <p class="page-subtitle">Customers who made their first purchase within the selected date range</p>
+                        <div class="section-date-filter">
+                            <div class="sdf-group">
+                                <label for="ncFrom">From</label>
+                                <input type="date" id="ncFrom" class="sdf-input">
+                            </div>
+                            <div class="sdf-group">
+                                <label for="ncTo">To</label>
+                                <input type="date" id="ncTo" class="sdf-input">
+                            </div>
+                            <button class="sdf-apply-btn" id="ncApplyFilter">Apply</button>
+                            <button class="sdf-clear-btn" id="ncClearFilter">Clear</button>
+                        </div>
+                    </div>
+                </div>
                 
                 <div class="metrics-grid">
                     <!-- Metric Card: Total Customers -->

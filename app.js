@@ -1,6 +1,4 @@
 document.addEventListener('DOMContentLoaded', async function () {
-    const dateFrom  = document.getElementById('dateFrom');
-    const dateTo    = document.getElementById('dateTo');
     const exportBtn = document.getElementById('exportBtn');
 
     // Store latest data for Excel export
@@ -9,14 +7,19 @@ document.addEventListener('DOMContentLoaded', async function () {
     // Initial load
     updateDashboard();
 
-    const mainApplyFilter = document.getElementById('mainApplyFilter');
-    if (mainApplyFilter) {
-        mainApplyFilter.addEventListener('click', updateDashboard);
-    }
+    // ── Overview section filter ───────────────────────────────────────────────
+    document.getElementById('overviewApplyFilter')?.addEventListener('click', () => {
+        const s = document.getElementById('overviewFrom').value;
+        const e = document.getElementById('overviewTo').value;
+        updateDashboard(s, e);
+    });
+    document.getElementById('overviewClearFilter')?.addEventListener('click', () => {
+        document.getElementById('overviewFrom').value = '';
+        document.getElementById('overviewTo').value   = '';
+        updateDashboard('', '');
+    });
 
-    async function updateDashboard() {
-        const start = dateFrom.value;
-        const end   = dateTo.value;
+    async function updateDashboard(start = '', end = '') {
 
         document.body.style.cursor = 'wait';
 
@@ -121,7 +124,6 @@ document.addEventListener('DOMContentLoaded', async function () {
             document.querySelectorAll('.metric-card .card-value').forEach(el => {
                 el.style.opacity = '1';
             });
-            await fetchNewCustomerMetrics(start, end);
             await fetchCustomerTrend(start, end);
         } catch (err) {
             console.error('Failed to fetch dashboard metrics:', err);
@@ -153,7 +155,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         });
     }
 
-    async function fetchNewCustomerMetrics(start, end) {
+    async function fetchNewCustomerMetrics(start = '', end = '') {
         try {
             const response = await fetch(`/api/new-customer-metrics?start=${start}&end=${end}`);
             const data = await response.json();
@@ -299,6 +301,8 @@ document.addEventListener('DOMContentLoaded', async function () {
     // ─── Excel Export ─────────────────────────────────────────────────────
     exportBtn.addEventListener('click', () => {
         if (!currentStats) return;
+        const ovFrom = document.getElementById('overviewFrom')?.value || '';
+        const ovTo   = document.getElementById('overviewTo')?.value   || '';
 
         const { master, stats } = currentStats;
 
@@ -323,7 +327,7 @@ document.addEventListener('DOMContentLoaded', async function () {
             : discountPct.toFixed(2) + '%';
 
         const worksheetData = [
-            [`Refer & Earn Report (${dateFrom.value} to ${dateTo.value})`, ''],
+            [`Refer & Earn Report (${ovFrom} to ${ovTo})`, ''],
             ['Total Customer Count',           master.total_customer_count],
             ['Total Bonus Point Given',         Math.round(master.total_bonus_point_given)],
             ['Total Purchase Count',            stats.purchase_count],
@@ -388,7 +392,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, 'Refer-Earn-Report');
-        XLSX.writeFile(wb, `Refer_Earn_Report_${dateFrom.value}_to_${dateTo.value}.xlsx`);
+        XLSX.writeFile(wb, `Refer_Earn_Report_${ovFrom || 'all'}_to_${ovTo || 'all'}.xlsx`);
     });
 
     // ─── Birth Month Report ───────────────────────────────────────────────
@@ -1071,9 +1075,7 @@ document.addEventListener('DOMContentLoaded', async function () {
     let classificationDoughnutInstance = null;
     let classificationData = null;
 
-    async function loadCustomerClassification() {
-        const start = dateFrom.value;
-        const end   = dateTo.value;
+    async function loadCustomerClassification(start = '', end = '') {
         const params = (start && end) ? `?start=${start}&end=${end}` : '';
 
         try {
@@ -1102,13 +1104,9 @@ document.addEventListener('DOMContentLoaded', async function () {
             }
 
             // ── KPI Cards ────────────────────────────────────────────────────
-            const totalEl = document.getElementById('ccTotalParticipants');
-            if (totalEl) totalEl.textContent = data.total_participants.toLocaleString('en-IN');
-
             const baseSizeEl = document.getElementById('ccBaseSize');
             if (baseSizeEl) {
-                const buyers = (data.total_buyers || 0).toLocaleString('en-IN');
-                baseSizeEl.textContent = `${buyers} purchased in selected range`;
+                baseSizeEl.textContent = (data.total_buyers || 0).toLocaleString('en-IN');
             }
 
             const repeatEl = document.getElementById('ccRepeatCount');
@@ -1274,20 +1272,42 @@ document.addEventListener('DOMContentLoaded', async function () {
         XLSX.writeFile(wb, `Customer_Classification_${dateStr}.xlsx`);
     });
 
-    // ─── Reload classification every time its tab is clicked ───────────────────────
+    // ─── Classification section filter ───────────────────────────────────────
+    document.getElementById('ccApplyFilter')?.addEventListener('click', () => {
+        const s = document.getElementById('ccFrom').value;
+        const e = document.getElementById('ccTo').value;
+        loadCustomerClassification(s, e);
+    });
+    document.getElementById('ccClearFilter')?.addEventListener('click', () => {
+        document.getElementById('ccFrom').value = '';
+        document.getElementById('ccTo').value   = '';
+        loadCustomerClassification('', '');
+    });
+
+    // ─── New Customer Metrics section filter ─────────────────────────────────
+    document.getElementById('ncApplyFilter')?.addEventListener('click', () => {
+        const s = document.getElementById('ncFrom').value;
+        const e = document.getElementById('ncTo').value;
+        fetchNewCustomerMetrics(s, e);
+    });
+    document.getElementById('ncClearFilter')?.addEventListener('click', () => {
+        document.getElementById('ncFrom').value = '';
+        document.getElementById('ncTo').value   = '';
+        fetchNewCustomerMetrics('', '');
+    });
+
+    // ─── Reload classification when its tab is clicked ───────────────────────
     document.querySelectorAll('.tab-link').forEach(link => {
         link.addEventListener('click', () => {
             if (link.getAttribute('data-target') === 'customerClassificationSection') {
-                loadCustomerClassification();
+                const s = document.getElementById('ccFrom')?.value || '';
+                const e = document.getElementById('ccTo')?.value   || '';
+                loadCustomerClassification(s, e);
             }
         });
     });
 
-    // Also load immediately on page load so data is ready
+    // Load all sections independently on page load
     loadCustomerClassification();
-
-    // Re-run classification when main Apply filter button is clicked
-    if (mainApplyFilter) {
-        mainApplyFilter.addEventListener('click', loadCustomerClassification);
-    }
+    fetchNewCustomerMetrics();
 });
