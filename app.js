@@ -1559,6 +1559,11 @@ document.addEventListener('DOMContentLoaded', async function () {
             const alpha = 0.07 + ratio * 0.80;
             const textDark = ratio > 0.55;
             return { bg: `rgba(37,99,235,${alpha.toFixed(2)})`, text: textDark ? '#fff' : '#1e293b' };
+        } else if (view === 'repeat_count') {
+            // Teal heatmap
+            const alpha = 0.07 + ratio * 0.80;
+            const textDark = ratio > 0.55;
+            return { bg: `rgba(8,145,178,${alpha.toFixed(2)})`, text: textDark ? '#fff' : '#1e293b' };
         } else if (view === 'revenue' || view === 'avg_purchase') {
             // Emerald heatmap
             const alpha = 0.07 + ratio * 0.80;
@@ -1574,10 +1579,11 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     function getCellValue(cell, view) {
         if (!cell) return null;
-        if (view === 'retention')   return { display: cell.retention_pct.toFixed(1) + '%', raw: cell.retention_pct };
-        if (view === 'revenue')     return { display: '₹' + toIndianNum(cell.revenue), raw: cell.revenue };
-        if (view === 'avg_purchase')return { display: '₹' + toIndianNum(cell.avg_purchase), raw: cell.avg_purchase };
-        if (view === 'bonus')       return { display: toIndianNum(cell.bonus_redeemed), raw: cell.bonus_redeemed };
+        if (view === 'retention')    return { display: cell.retention_pct.toFixed(1) + '%', raw: cell.retention_pct };
+        if (view === 'repeat_count') return { display: toIndianNum(cell.active), raw: cell.active };
+        if (view === 'revenue')      return { display: '₹' + toIndianNum(cell.revenue), raw: cell.revenue };
+        if (view === 'avg_purchase') return { display: '₹' + toIndianNum(cell.avg_purchase), raw: cell.avg_purchase };
+        if (view === 'bonus')        return { display: toIndianNum(cell.bonus_redeemed), raw: cell.bonus_redeemed };
         return null;
     }
 
