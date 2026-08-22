@@ -641,125 +641,286 @@ def customer_classification():
 @app.route('/api/new-customer-metrics')
 def new_customer_metrics():
     """
-    Core Performance Metrics restricted to NEW customers only.
-
-    New Customer = in refer_point_data BUT NOT in sales_data before 2026-08-01
-    Sales range  = filtered by the date picker (default: Jan 2026 onwards)
+    Performance Metrics for NEW customers only.
+    Uses the SAME classification logic as /api/customer-classification:
+      New = R&E participant who bought in range AND first-ever purchase >= sd
     """
+    from datetime import datetime
     start_date = request.args.get('start', '')
     end_date   = request.args.get('end', '')
 
-    is_full_range = not (start_date and end_date)
-
-    # Build sales date filter
-    if is_full_range:
-        sales_date_filter = "parsed_date >= '2026-01-16'"  # programme start date
-        ref_date_filter   = ""
-    else:
+    if start_date and end_date:
         try:
-            from datetime import datetime
             sd = datetime.strptime(start_date, '%Y-%m-%d').strftime('%Y-%m-%d')
             ed = datetime.strptime(end_date,   '%Y-%m-%d').strftime('%Y-%m-%d')
-            sales_date_filter = f"parsed_date >= '{sd}' AND parsed_date <= '{ed}'"
-            ref_date_filter   = f"AND start_date >= '{sd}' AND start_date <= '{ed}'"
         except Exception:
             return jsonify({'error': 'Invalid date format'}), 400
+    else:
+        sd = '2026-01-16'
+        ed = datetime.today().strftime('%Y-%m-%d')
 
     try:
         client = get_ch_client()
+        mob_re = _normalize_mob_expr('customer_mobile_number')
+        mob_s  = _normalize_mob_expr('customer_mobile')
 
-        # ── Step 1: Master stats for New Customers ─────────────────────────
-        # New = in refer_point_data BUT NOT in sales_data before Aug 1 2026
-        master_query = f"""
-            WITH base AS (
-                SELECT DISTINCT {_normalize_mob_expr('customer_mobile')} AS mob
-                FROM sales_data
-                WHERE parsed_date <= '{REPEAT_CUTOFF_DATE}'
-                  AND customer_mobile != ''
-            )
-            SELECT
-                count(DISTINCT mob)  AS nc_customer_count,
-                sum(bonus_points)    AS nc_bonus_points
-            FROM (
-                SELECT
-                    {_normalize_mob_expr('customer_mobile_number')} AS mob,
-                    bonus_points
-                FROM refer_point_data
-                WHERE customer_mobile_number != '' {ref_date_filter}
-            )
-            WHERE mob NOT IN (SELECT mob FROM base)
-        """
-        m = client.query(master_query).result_rows[0]
-        nc_total_customer_count    = int(m[0])
-        nc_total_bonus_point_given = float(m[1]) if m[1] else 0.0
-
-        # ── Step 2: Sales metrics for New Customers ────────────────────────
-        range_query = f"""
-            WITH base AS (
-                SELECT DISTINCT {_normalize_mob_expr('customer_mobile')} AS mob
-                FROM sales_data
-                WHERE parsed_date <= '{REPEAT_CUTOFF_DATE}'
-                  AND customer_mobile != ''
-            ),
-            re_new AS (
-                SELECT DISTINCT {_normalize_mob_expr('customer_mobile_number')} AS mob
+        # Shared CTEs ─ identical to customer-classification logic
+        shared = f"""
+            WITH
+            re_participants AS (
+                SELECT DISTINCT {mob_re} AS mob
                 FROM refer_point_data
                 WHERE customer_mobile_number != ''
-                  AND mob NOT IN (SELECT mob FROM base)
+                  AND length({mob_re}) = 10
             ),
-            valid_sales AS (
-                SELECT
-                    {_normalize_mob_expr('customer_mobile')} AS mob,
-                    total_value,
-                    abs(toFloat64OrZero(point_redemption)) AS redemption
+            first_purchase AS (
+                SELECT {mob_s} AS mob, min(parsed_date) AS first_date
                 FROM sales_data
-                WHERE {sales_date_filter}
-                  AND {_normalize_mob_expr('customer_mobile')} IN (SELECT mob FROM re_new)
+                WHERE customer_mobile != ''
+                  AND length({mob_s}) = 10
+                GROUP BY mob
             ),
-            redeemers AS (
-                SELECT DISTINCT mob FROM valid_sales WHERE redemption > 0
+            in_range_buyers AS (
+                SELECT DISTINCT {mob_s} AS mob
+                FROM sales_data
+                WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
+                  AND customer_mobile != ''
+                  AND length({mob_s}) = 10
+                  AND {mob_s} IN (SELECT mob FROM re_participants)
+            ),
+            -- New = first-ever purchase date >= sd (same as classification)
+            new_customers AS (
+                SELECT irb.mob
+                FROM in_range_buyers irb
+                LEFT JOIN first_purchase fp ON irb.mob = fp.mob
+                WHERE fp.first_date >= '{sd}'
             )
+        """
+
+        # Combined metrics query
+        metrics_q = shared + f"""
+            ,
+            valid_sales AS (
+                SELECT {mob_s} AS mob, total_value,
+                       abs(toFloat64OrZero(point_redemption)) AS redemption
+                FROM sales_data
+                WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
+                  AND {mob_s} IN (SELECT mob FROM new_customers)
+            ),
+            redeemers AS (SELECT DISTINCT mob FROM valid_sales WHERE redemption > 0)
             SELECT
-                count(DISTINCT mob)                                                            AS purchase_count,
-                (SELECT count() FROM redeemers)                                                AS redeemed_count,
-                sum(redemption)                                                                AS point_redeemed_value,
-                (SELECT sum(total_value) FROM valid_sales WHERE mob IN (SELECT mob FROM redeemers)) AS redeemed_purchase_value
+                (SELECT count() FROM new_customers)           AS nc_count,
+                (SELECT sum(rpd.bonus_points)
+                 FROM (
+                     SELECT {mob_re} AS mob, bonus_points
+                     FROM refer_point_data WHERE customer_mobile_number != ''
+                 ) rpd
+                 WHERE rpd.mob IN (SELECT mob FROM new_customers)) AS nc_bonus,
+                count(DISTINCT mob)                           AS purchase_count,
+                (SELECT count() FROM redeemers)               AS redeemed_count,
+                sum(redemption)                               AS point_redeemed,
+                (SELECT sum(total_value) FROM valid_sales
+                 WHERE mob IN (SELECT mob FROM redeemers))    AS redeemed_purch_v
             FROM valid_sales
         """
-        r = client.query(range_query).result_rows[0]
-        nc_purchase_count    = int(r[0])   if r[0] else 0
-        nc_redeemed_count    = int(r[1])   if r[1] else 0
-        nc_point_redeemed    = float(r[2]) if r[2] else 0.0
-        nc_redeemed_purch_v  = float(r[3]) if r[3] else 0.0
+        row = client.query(metrics_q).result_rows[0]
+        nc_count         = int(row[0])   if row[0] else 0
+        nc_bonus         = float(row[1]) if row[1] else 0.0
+        purchase_count   = int(row[2])   if row[2] else 0
+        redeemed_count   = int(row[3])   if row[3] else 0
+        point_redeemed   = float(row[4]) if row[4] else 0.0
+        redeemed_purch_v = float(row[5]) if row[5] else 0.0
 
-        if nc_redeemed_purch_v > 0:
-            nc_discount_pct = (nc_point_redeemed / nc_redeemed_purch_v) * 100
-            nc_avg_purchase = nc_redeemed_purch_v / nc_redeemed_count if nc_redeemed_count else 0
-            nc_avg_points   = nc_point_redeemed   / nc_redeemed_count if nc_redeemed_count else 0
+        if redeemed_purch_v > 0:
+            discount_pct = (point_redeemed / redeemed_purch_v) * 100
+            avg_purchase = redeemed_purch_v / redeemed_count if redeemed_count else 0
+            avg_points   = point_redeemed   / redeemed_count if redeemed_count else 0
         else:
-            nc_discount_pct = nc_avg_purchase = nc_avg_points = 0
+            discount_pct = avg_purchase = avg_points = 0
+
+        # Daily trend for new customers
+        trend_q = shared + f"""
+            ,
+            daily AS (
+                SELECT {mob_s} AS mob, parsed_date
+                FROM sales_data
+                WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
+                  AND {mob_s} IN (SELECT mob FROM new_customers)
+            )
+            SELECT parsed_date, count(DISTINCT mob) AS cnt
+            FROM daily
+            GROUP BY parsed_date
+            ORDER BY parsed_date
+        """
+        trend_rows   = client.query(trend_q).result_rows
+        trend_labels = [str(r[0]) for r in trend_rows]
+        trend_data   = [int(r[1]) for r in trend_rows]
 
         return jsonify({
             "master_stats": {
-                "total_customer_count":    nc_total_customer_count,
-                "total_bonus_point_given": nc_total_bonus_point_given
+                "total_customer_count":    nc_count,
+                "total_bonus_point_given": nc_bonus
             },
             "range_stats": {
-                "purchase_count":          nc_purchase_count,
-                "redeemed_count":          nc_redeemed_count,
-                "point_redeemed_value":    nc_point_redeemed,
-                "redeemed_purchase_value": nc_redeemed_purch_v,
-                "loyalty_discount_pct":    round(nc_discount_pct, 2),
-                "avg_purchase_value":      round(nc_avg_purchase, 2),
-                "avg_loyalty_redemption":  round(nc_avg_points, 2)
+                "purchase_count":          purchase_count,
+                "redeemed_count":          redeemed_count,
+                "point_redeemed_value":    point_redeemed,
+                "redeemed_purchase_value": redeemed_purch_v,
+                "loyalty_discount_pct":    round(discount_pct, 2),
+                "avg_purchase_value":      round(avg_purchase, 2),
+                "avg_loyalty_redemption":  round(avg_points, 2)
             },
-            "is_full_range": is_full_range
+            "trend": {"labels": trend_labels, "data": trend_data},
+            "is_full_range": not (start_date and end_date)
         })
 
     except Exception as e:
         import traceback
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/repeat-customer-metrics')
+def repeat_customer_metrics():
+    """
+    Performance Metrics for REPEAT customers only.
+    Uses the SAME classification logic as /api/customer-classification:
+      Repeat = R\u0026E participant who bought in range AND first-ever purchase < sd
+    """
+    from datetime import datetime
+    start_date = request.args.get('start', '')
+    end_date   = request.args.get('end', '')
+
+    if start_date and end_date:
+        try:
+            sd = datetime.strptime(start_date, '%Y-%m-%d').strftime('%Y-%m-%d')
+            ed = datetime.strptime(end_date,   '%Y-%m-%d').strftime('%Y-%m-%d')
+        except Exception:
+            return jsonify({'error': 'Invalid date format'}), 400
+    else:
+        sd = '2026-01-16'
+        ed = datetime.today().strftime('%Y-%m-%d')
+
+    try:
+        client = get_ch_client()
+        mob_re = _normalize_mob_expr('customer_mobile_number')
+        mob_s  = _normalize_mob_expr('customer_mobile')
+
+        # Shared CTEs ─ identical to customer-classification logic
+        shared = f"""
+            WITH
+            re_participants AS (
+                SELECT DISTINCT {mob_re} AS mob
+                FROM refer_point_data
+                WHERE customer_mobile_number != ''
+                  AND length({mob_re}) = 10
+            ),
+            first_purchase AS (
+                SELECT {mob_s} AS mob, min(parsed_date) AS first_date
+                FROM sales_data
+                WHERE customer_mobile != ''
+                  AND length({mob_s}) = 10
+                GROUP BY mob
+            ),
+            in_range_buyers AS (
+                SELECT DISTINCT {mob_s} AS mob
+                FROM sales_data
+                WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
+                  AND customer_mobile != ''
+                  AND length({mob_s}) = 10
+                  AND {mob_s} IN (SELECT mob FROM re_participants)
+            ),
+            -- Repeat = first-ever purchase date < sd (same as classification)
+            repeat_customers AS (
+                SELECT irb.mob
+                FROM in_range_buyers irb
+                LEFT JOIN first_purchase fp ON irb.mob = fp.mob
+                WHERE fp.first_date < '{sd}'
+            )
+        """
+
+        # Combined metrics query
+        metrics_q = shared + f"""
+            ,
+            valid_sales AS (
+                SELECT {mob_s} AS mob, total_value,
+                       abs(toFloat64OrZero(point_redemption)) AS redemption
+                FROM sales_data
+                WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
+                  AND {mob_s} IN (SELECT mob FROM repeat_customers)
+            ),
+            redeemers AS (SELECT DISTINCT mob FROM valid_sales WHERE redemption > 0)
+            SELECT
+                (SELECT count() FROM repeat_customers)        AS rc_count,
+                (SELECT sum(rpd.bonus_points)
+                 FROM (
+                     SELECT {mob_re} AS mob, bonus_points
+                     FROM refer_point_data WHERE customer_mobile_number != ''
+                 ) rpd
+                 WHERE rpd.mob IN (SELECT mob FROM repeat_customers)) AS rc_bonus,
+                count(DISTINCT mob)                           AS purchase_count,
+                (SELECT count() FROM redeemers)               AS redeemed_count,
+                sum(redemption)                               AS point_redeemed,
+                (SELECT sum(total_value) FROM valid_sales
+                 WHERE mob IN (SELECT mob FROM redeemers))    AS redeemed_purch_v
+            FROM valid_sales
+        """
+        row = client.query(metrics_q).result_rows[0]
+        rc_count         = int(row[0])   if row[0] else 0
+        rc_bonus         = float(row[1]) if row[1] else 0.0
+        purchase_count   = int(row[2])   if row[2] else 0
+        redeemed_count   = int(row[3])   if row[3] else 0
+        point_redeemed   = float(row[4]) if row[4] else 0.0
+        redeemed_purch_v = float(row[5]) if row[5] else 0.0
+
+        if redeemed_purch_v > 0:
+            discount_pct = (point_redeemed / redeemed_purch_v) * 100
+            avg_purchase = redeemed_purch_v / redeemed_count if redeemed_count else 0
+            avg_points   = point_redeemed   / redeemed_count if redeemed_count else 0
+        else:
+            discount_pct = avg_purchase = avg_points = 0
+
+        # Daily trend for repeat customers
+        trend_q = shared + f"""
+            ,
+            daily AS (
+                SELECT {mob_s} AS mob, parsed_date
+                FROM sales_data
+                WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
+                  AND {mob_s} IN (SELECT mob FROM repeat_customers)
+            )
+            SELECT parsed_date, count(DISTINCT mob) AS cnt
+            FROM daily
+            GROUP BY parsed_date
+            ORDER BY parsed_date
+        """
+        trend_rows   = client.query(trend_q).result_rows
+        trend_labels = [str(r[0]) for r in trend_rows]
+        trend_data   = [int(r[1]) for r in trend_rows]
+
+        return jsonify({
+            "master_stats": {
+                "total_customer_count":    rc_count,
+                "total_bonus_point_given": rc_bonus
+            },
+            "range_stats": {
+                "purchase_count":          purchase_count,
+                "redeemed_count":          redeemed_count,
+                "point_redeemed_value":    point_redeemed,
+                "redeemed_purchase_value": redeemed_purch_v,
+                "loyalty_discount_pct":    round(discount_pct, 2),
+                "avg_purchase_value":      round(avg_purchase, 2),
+                "avg_loyalty_redemption":  round(avg_points, 2)
+            },
+            "trend": {"labels": trend_labels, "data": trend_data},
+            "is_full_range": not (start_date and end_date)
+        })
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
 
 
 if __name__ == '__main__':

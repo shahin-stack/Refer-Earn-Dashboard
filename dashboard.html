@@ -42,9 +42,6 @@
                 <a href="#customerClassificationSection" class="nav-item tab-link" data-target="customerClassificationSection">
                     <span class="nav-icon">🔍</span> Customer Classification
                 </a>
-                <a href="#newCustomerMetricsSection" class="nav-item tab-link" data-target="newCustomerMetricsSection">
-                    <span class="nav-icon">✨</span> New Customer Metrics
-                </a>
             </nav>
             <div class="sidebar-footer">
                 <p>System v1.2.4</p>
@@ -69,7 +66,21 @@
                 <div class="district-section-header">
                     <div class="district-section-meta">
                         <div class="section-badge">Section 01</div>
-                        <h2 class="section-title" style="margin-bottom:0.25rem;">Core Performance Metrics</h2>
+                        <h2 class="section-title" style="margin-bottom:0.5rem;">Program Overview</h2>
+                        <p class="page-subtitle" style="margin-bottom:1rem;">Loyalty analytics broken down by customer segment</p>
+                        <!-- Overview Sub-Tabs -->
+                        <div class="overview-tabs">
+                            <button class="overview-tab-btn active" data-overview-target="coreMetricsPanel" id="coreMetricsTab">📊 Core Performance</button>
+                            <button class="overview-tab-btn" data-overview-target="repeatMetricsPanel" id="repeatMetricsTab">🔄 Repeat Customer Metrics</button>
+                            <button class="overview-tab-btn" data-overview-target="newMetricsPanel" id="newMetricsTab">✨ New Customer Metrics</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Panel 1: Core Performance Metrics ────────────────── -->
+                <div class="overview-panel active-overview-panel" id="coreMetricsPanel">
+                    <div class="overview-panel-header">
+                        <h3 class="overview-panel-title">Core Performance Metrics</h3>
                         <div class="section-date-filter">
                             <div class="sdf-group">
                                 <label for="overviewFrom">From</label>
@@ -83,108 +94,296 @@
                             <button class="sdf-clear-btn" id="overviewClearFilter">Clear</button>
                         </div>
                     </div>
-                </div>
-                
-                <div class="metrics-grid">
-                    <!-- Metric Card: Total Customers -->
-                    <div class="metric-card glass">
-                        <div class="card-icon blue">👥</div>
-                        <div class="card-content">
-                            <span class="card-label">Total Customer Count</span>
-                            <h3 class="card-value">—</h3>
-                            <div class="card-trend up">Verified from Monthly DB</div>
+                    <div class="metrics-grid">
+                        <div class="metric-card glass">
+                            <div class="card-icon blue">👥</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Customer Count</span>
+                                <h3 class="card-value" id="cardTotalCustomers">—</h3>
+                                <div class="card-trend up">Verified from Monthly DB</div>
+                            </div>
                         </div>
-                    </div>
-
-                    <!-- Metric Card: Bonus Points -->
-                    <div class="metric-card glass">
-                        <div class="card-icon emerald">💎</div>
-                        <div class="card-content">
-                            <span class="card-label">Total Bonus Point Given</span>
-                            <h3 class="card-value">—</h3>
-                            <div class="card-trend grey">Total bonus pts issued</div>
+                        <div class="metric-card glass">
+                            <div class="card-icon emerald">💎</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Bonus Point Given</span>
+                                <h3 class="card-value" id="cardBonusPoints">—</h3>
+                                <div class="card-trend grey">Total bonus pts issued</div>
+                            </div>
                         </div>
-                    </div>
-
-                    <!-- Metric Card: Purchase Count -->
-                    <div class="metric-card glass">
-                        <div class="card-icon purple">🛒</div>
-                        <div class="card-content">
-                            <span class="card-label">Total Purchase Count</span>
-                            <h3 class="card-value">—</h3>
-                            <div class="card-trend up">Unique match unique mobs</div>
+                        <div class="metric-card glass">
+                            <div class="card-icon purple">🛒</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Purchase Count</span>
+                                <h3 class="card-value" id="cardPurchaseCount">—</h3>
+                                <div class="card-trend up">Unique match unique mobs</div>
+                            </div>
                         </div>
-                    </div>
-
-                    <!-- Metric Card: Redeemed Count -->
-                    <div class="metric-card glass accent">
-                        <div class="card-icon gold">🎯</div>
-                        <div class="card-content">
-                            <span class="card-label">Total Redeemed Count</span>
-                            <h3 class="card-value">—</h3>
-                            <div class="card-trend blue">Target verified</div>
+                        <div class="metric-card glass accent">
+                            <div class="card-icon gold">🎯</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Redeemed Count</span>
+                                <h3 class="card-value" id="cardRedeemedCount">—</h3>
+                                <div class="card-trend blue">Target verified</div>
+                            </div>
                         </div>
-                    </div>
-
-                    <!-- Metric Card: Redeemed Points -->
-                    <div class="metric-card glass">
-                        <div class="card-icon red">🔥</div>
-                        <div class="card-content">
-                            <span class="card-label">Total Point Redeemed Value</span>
-                            <h3 class="card-value" id="cardPointRedeemed">—</h3>
-                            <div class="card-trend grey">Total pts redeemed</div>
+                        <div class="metric-card glass">
+                            <div class="card-icon red">🔥</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Point Redeemed Value</span>
+                                <h3 class="card-value" id="cardPointRedeemed">—</h3>
+                                <div class="card-trend grey">Total pts redeemed</div>
+                            </div>
                         </div>
-                    </div>
-
-                    <!-- Metric Card: Redeemed Purchases -->
-                    <div class="metric-card glass">
-                        <div class="card-icon indigo">💰</div>
-                        <div class="card-content">
-                            <span class="card-label">Redeemed Purchase Value</span>
-                            <h3 class="card-value" id="cardRedeemedPurchase">—</h3>
-                            <div class="card-trend grey">Total redeemed purchase value</div>
+                        <div class="metric-card glass">
+                            <div class="card-icon indigo">💰</div>
+                            <div class="card-content">
+                                <span class="card-label">Redeemed Purchase Value</span>
+                                <h3 class="card-value" id="cardRedeemedPurchase">—</h3>
+                                <div class="card-trend grey">Total redeemed purchase value</div>
+                            </div>
                         </div>
-                    </div>
-
-                    <!-- Ratio: Discount % -->
-                    <div class="metric-card glass highlight">
-                        <div class="card-icon teal">📈</div>
-                        <div class="card-content">
-                            <span class="card-label">Loyalty Point Discount %</span>
-                            <h3 class="card-value" id="cardDiscountPct">—</h3>
-                            <div class="card-progress-bar">
-                                <div class="progress-fill" id="discountProgressBar" style="width: 0%"></div>
+                        <div class="metric-card glass highlight">
+                            <div class="card-icon teal">📈</div>
+                            <div class="card-content">
+                                <span class="card-label">Loyalty Point Discount %</span>
+                                <h3 class="card-value" id="cardDiscountPct">—</h3>
+                                <div class="card-progress-bar">
+                                    <div class="progress-fill" id="discountProgressBar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass">
+                            <div class="card-icon pink">📊</div>
+                            <div class="card-content">
+                                <span class="card-label">Avg Purchase Value</span>
+                                <h3 class="card-value" id="cardAvgPurchase">—</h3>
+                                <div class="card-trend grey">Per redeemed customer</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass">
+                            <div class="card-icon slate">✨</div>
+                            <div class="card-content">
+                                <span class="card-label">Avg Point Redemption</span>
+                                <h3 class="card-value" id="cardAvgRedemption">—</h3>
+                                <div class="card-trend grey">Points per customer</div>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Ratio: Avg Purchase -->
-                    <div class="metric-card glass">
-                        <div class="card-icon pink">📊</div>
-                        <div class="card-content">
-                            <span class="card-label">Avg Purchase Value</span>
-                            <h3 class="card-value" id="cardAvgPurchase">—</h3>
-                            <div class="card-trend grey">Per redeemed customer</div>
-                        </div>
-                    </div>
-
-                    <!-- Ratio: Avg Redemption -->
-                    <div class="metric-card glass">
-                        <div class="card-icon slate">✨</div>
-                        <div class="card-content">
-                            <span class="card-label">Avg Point Redemption</span>
-                            <h3 class="card-value" id="cardAvgRedemption">—</h3>
-                            <div class="card-trend grey">Points per customer</div>
+                    <div class="glass age-chart-card" style="margin-top: 2rem;">
+                        <h3 class="chart-title">Customer Acquisition Trend</h3>
+                        <p class="chart-subtitle">Daily new customers</p>
+                        <div class="age-chart-wrapper" style="height: 300px;">
+                            <canvas id="customerTrendChart"></canvas>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Daily Trend Chart -->
-                <div class="glass age-chart-card" style="margin-top: 2rem;">
-                    <h3 class="chart-title">Customer Acquisition Trend</h3>
-                    <p class="chart-subtitle">Daily new customers</p>
-                    <div class="age-chart-wrapper" style="height: 300px;">
-                        <canvas id="customerTrendChart"></canvas>
+
+                <!-- ── Panel 2: Repeat Customer Metrics ─────────────────── -->
+                <div class="overview-panel" id="repeatMetricsPanel">
+                    <div class="overview-panel-header">
+                        <h3 class="overview-panel-title">Repeat Customer Metrics</h3>
+                        <p class="overview-panel-sub">Customers who had at least one purchase before the selected start date</p>
+                        <div class="section-date-filter">
+                            <div class="sdf-group">
+                                <label for="rcFrom">From</label>
+                                <input type="date" id="rcFrom" class="sdf-input">
+                            </div>
+                            <div class="sdf-group">
+                                <label for="rcTo">To</label>
+                                <input type="date" id="rcTo" class="sdf-input">
+                            </div>
+                            <button class="sdf-apply-btn" id="rcApplyFilter">Apply</button>
+                            <button class="sdf-clear-btn" id="rcClearFilter">Clear</button>
+                        </div>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric-card glass rc-card">
+                            <div class="card-icon blue">👥</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Customer Count</span>
+                                <h3 class="card-value" id="rc-cardTotalCustomers">—</h3>
+                                <div class="card-trend up">Exclusively repeat shoppers</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass rc-card">
+                            <div class="card-icon emerald">💎</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Bonus Point Given</span>
+                                <h3 class="card-value" id="rc-cardBonusPoints">—</h3>
+                                <div class="card-trend grey">Total bonus pts issued</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass rc-card">
+                            <div class="card-icon purple">🛒</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Purchase Count</span>
+                                <h3 class="card-value" id="rc-cardPurchaseCount">—</h3>
+                                <div class="card-trend up">Unique match unique mobs</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass accent rc-card">
+                            <div class="card-icon gold">🎯</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Redeemed Count</span>
+                                <h3 class="card-value" id="rc-cardRedeemedCount">—</h3>
+                                <div class="card-trend blue">Target verified</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass rc-card">
+                            <div class="card-icon red">🔥</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Point Redeemed Value</span>
+                                <h3 class="card-value" id="rc-cardPointRedeemed">—</h3>
+                                <div class="card-trend grey">Total pts redeemed</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass rc-card">
+                            <div class="card-icon indigo">💰</div>
+                            <div class="card-content">
+                                <span class="card-label">Redeemed Purchase Value</span>
+                                <h3 class="card-value" id="rc-cardRedeemedPurchase">—</h3>
+                                <div class="card-trend grey">Total redeemed purchase value</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass highlight rc-card">
+                            <div class="card-icon teal">📈</div>
+                            <div class="card-content">
+                                <span class="card-label">Loyalty Point Discount %</span>
+                                <h3 class="card-value" id="rc-cardDiscountPct">—</h3>
+                                <div class="card-progress-bar">
+                                    <div class="progress-fill" id="rc-discountProgressBar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass rc-card">
+                            <div class="card-icon pink">📊</div>
+                            <div class="card-content">
+                                <span class="card-label">Avg Purchase Value</span>
+                                <h3 class="card-value" id="rc-cardAvgPurchase">—</h3>
+                                <div class="card-trend grey">Per redeemed customer</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass rc-card">
+                            <div class="card-icon slate">✨</div>
+                            <div class="card-content">
+                                <span class="card-label">Avg Point Redemption</span>
+                                <h3 class="card-value" id="rc-cardAvgRedemption">—</h3>
+                                <div class="card-trend grey">Points per customer</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Repeat Customer Trend Chart -->
+                    <div class="glass age-chart-card" style="margin-top: 2rem;">
+                        <h3 class="chart-title">Repeat Customer Purchase Trend</h3>
+                        <p class="chart-subtitle">Daily repeat customer purchases in selected range</p>
+                        <div class="age-chart-wrapper" style="height: 300px;">
+                            <canvas id="repeatTrendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Panel 3: New Customer Metrics ────────────────────── -->
+                <div class="overview-panel" id="newMetricsPanel">
+                    <div class="overview-panel-header">
+                        <h3 class="overview-panel-title">New Customer Metrics</h3>
+                        <p class="overview-panel-sub">Customers who made their first purchase within the selected date range</p>
+                        <div class="section-date-filter">
+                            <div class="sdf-group">
+                                <label for="ncFrom">From</label>
+                                <input type="date" id="ncFrom" class="sdf-input">
+                            </div>
+                            <div class="sdf-group">
+                                <label for="ncTo">To</label>
+                                <input type="date" id="ncTo" class="sdf-input">
+                            </div>
+                            <button class="sdf-apply-btn" id="ncApplyFilter">Apply</button>
+                            <button class="sdf-clear-btn" id="ncClearFilter">Clear</button>
+                        </div>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric-card glass nc-card">
+                            <div class="card-icon blue">👥</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Customer Count</span>
+                                <h3 class="card-value" id="nc-cardTotalCustomers">—</h3>
+                                <div class="card-trend up">Exclusively new shoppers</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass nc-card">
+                            <div class="card-icon emerald">💎</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Bonus Point Given</span>
+                                <h3 class="card-value" id="nc-cardBonusPoints">—</h3>
+                                <div class="card-trend grey">Total bonus pts issued</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass nc-card">
+                            <div class="card-icon purple">🛒</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Purchase Count</span>
+                                <h3 class="card-value" id="nc-cardPurchaseCount">—</h3>
+                                <div class="card-trend up">Unique match unique mobs</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass accent nc-card">
+                            <div class="card-icon gold">🎯</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Redeemed Count</span>
+                                <h3 class="card-value" id="nc-cardRedeemedCount">—</h3>
+                                <div class="card-trend blue">Target verified</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass nc-card">
+                            <div class="card-icon red">🔥</div>
+                            <div class="card-content">
+                                <span class="card-label">Total Point Redeemed Value</span>
+                                <h3 class="card-value" id="nc-cardPointRedeemed">—</h3>
+                                <div class="card-trend grey">Total pts redeemed</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass nc-card">
+                            <div class="card-icon indigo">💰</div>
+                            <div class="card-content">
+                                <span class="card-label">Redeemed Purchase Value</span>
+                                <h3 class="card-value" id="nc-cardRedeemedPurchase">—</h3>
+                                <div class="card-trend grey">Total redeemed purchase value</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass highlight nc-card">
+                            <div class="card-icon teal">📈</div>
+                            <div class="card-content">
+                                <span class="card-label">Loyalty Point Discount %</span>
+                                <h3 class="card-value" id="nc-cardDiscountPct">—</h3>
+                                <div class="card-progress-bar">
+                                    <div class="progress-fill" id="nc-discountProgressBar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass nc-card">
+                            <div class="card-icon pink">📊</div>
+                            <div class="card-content">
+                                <span class="card-label">Avg Purchase Value</span>
+                                <h3 class="card-value" id="nc-cardAvgPurchase">—</h3>
+                                <div class="card-trend grey">Per redeemed customer</div>
+                            </div>
+                        </div>
+                        <div class="metric-card glass nc-card">
+                            <div class="card-icon slate">✨</div>
+                            <div class="card-content">
+                                <span class="card-label">Avg Point Redemption</span>
+                                <h3 class="card-value" id="nc-cardAvgRedemption">—</h3>
+                                <div class="card-trend grey">Points per customer</div>
+                            </div>
+                        </div>
+                    </div>
+                    <!-- New Customer Trend Chart -->
+                    <div class="glass age-chart-card" style="margin-top: 2rem;">
+                        <h3 class="chart-title">New Customer Purchase Trend</h3>
+                        <p class="chart-subtitle">Daily new customer purchases in selected range</p>
+                        <div class="age-chart-wrapper" style="height: 300px;">
+                            <canvas id="newTrendChart"></canvas>
+                        </div>
                     </div>
                 </div>
             </section>
@@ -526,122 +725,7 @@
                 </div>
             </section>
 
-            <!-- ── Section 07 : New Customer Metrics ──────────────── -->
-            <section class="section tab-section" id="newCustomerMetricsSection">
-                <div class="district-section-header">
-                    <div class="district-section-meta">
-                        <div class="section-badge">Section 07</div>
-                        <h2 class="section-title" style="margin-bottom:0.25rem;">New Customer Performance Metrics</h2>
-                        <p class="page-subtitle">Customers who made their first purchase within the selected date range</p>
-                        <div class="section-date-filter">
-                            <div class="sdf-group">
-                                <label for="ncFrom">From</label>
-                                <input type="date" id="ncFrom" class="sdf-input">
-                            </div>
-                            <div class="sdf-group">
-                                <label for="ncTo">To</label>
-                                <input type="date" id="ncTo" class="sdf-input">
-                            </div>
-                            <button class="sdf-apply-btn" id="ncApplyFilter">Apply</button>
-                            <button class="sdf-clear-btn" id="ncClearFilter">Clear</button>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="metrics-grid">
-                    <!-- Metric Card: Total Customers -->
-                    <div class="metric-card glass nc-card">
-                        <div class="card-icon blue">👥</div>
-                        <div class="card-content">
-                            <span class="card-label">Total Customer Count</span>
-                            <h3 class="card-value" id="nc-cardTotalCustomers">—</h3>
-                            <div class="card-trend up">Exclusively new shoppers</div>
-                        </div>
-                    </div>
 
-                    <!-- Metric Card: Bonus Points -->
-                    <div class="metric-card glass nc-card">
-                        <div class="card-icon emerald">💎</div>
-                        <div class="card-content">
-                            <span class="card-label">Total Bonus Point Given</span>
-                            <h3 class="card-value" id="nc-cardBonusPoints">—</h3>
-                            <div class="card-trend grey">Total bonus pts issued</div>
-                        </div>
-                    </div>
-
-                    <!-- Metric Card: Purchase Count -->
-                    <div class="metric-card glass nc-card">
-                        <div class="card-icon purple">🛒</div>
-                        <div class="card-content">
-                            <span class="card-label">Total Purchase Count</span>
-                            <h3 class="card-value" id="nc-cardPurchaseCount">—</h3>
-                            <div class="card-trend up">Unique match unique mobs</div>
-                        </div>
-                    </div>
-
-                    <!-- Metric Card: Redeemed Count -->
-                    <div class="metric-card glass accent nc-card">
-                        <div class="card-icon gold">🎯</div>
-                        <div class="card-content">
-                            <span class="card-label">Total Redeemed Count</span>
-                            <h3 class="card-value" id="nc-cardRedeemedCount">—</h3>
-                            <div class="card-trend blue">Target verified</div>
-                        </div>
-                    </div>
-
-                    <!-- Metric Card: Redeemed Points -->
-                    <div class="metric-card glass nc-card">
-                        <div class="card-icon red">🔥</div>
-                        <div class="card-content">
-                            <span class="card-label">Total Point Redeemed Value</span>
-                            <h3 class="card-value" id="nc-cardPointRedeemed">—</h3>
-                            <div class="card-trend grey">Total pts redeemed</div>
-                        </div>
-                    </div>
-
-                    <!-- Metric Card: Redeemed Purchases -->
-                    <div class="metric-card glass nc-card">
-                        <div class="card-icon indigo">💰</div>
-                        <div class="card-content">
-                            <span class="card-label">Redeemed Purchase Value</span>
-                            <h3 class="card-value" id="nc-cardRedeemedPurchase">—</h3>
-                            <div class="card-trend grey">Total redeemed purchase value</div>
-                        </div>
-                    </div>
-
-                    <!-- Ratio: Discount % -->
-                    <div class="metric-card glass highlight nc-card">
-                        <div class="card-icon teal">📈</div>
-                        <div class="card-content">
-                            <span class="card-label">Loyalty Point Discount %</span>
-                            <h3 class="card-value" id="nc-cardDiscountPct">—</h3>
-                            <div class="card-progress-bar">
-                                <div class="progress-fill" id="nc-discountProgressBar" style="width: 0%"></div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Ratio: Avg Purchase -->
-                    <div class="metric-card glass nc-card">
-                        <div class="card-icon pink">📊</div>
-                        <div class="card-content">
-                            <span class="card-label">Avg Purchase Value</span>
-                            <h3 class="card-value" id="nc-cardAvgPurchase">—</h3>
-                            <div class="card-trend grey">Per redeemed customer</div>
-                        </div>
-                    </div>
-
-                    <!-- Ratio: Avg Redemption -->
-                    <div class="metric-card glass nc-card">
-                        <div class="card-icon slate">✨</div>
-                        <div class="card-content">
-                            <span class="card-label">Avg Point Redemption</span>
-                            <h3 class="card-value" id="nc-cardAvgRedemption">—</h3>
-                            <div class="card-trend grey">Points per customer</div>
-                        </div>
-                    </div>
-                </div>
-            </section>
         </main>
     </div>
     <!-- Script resources -->

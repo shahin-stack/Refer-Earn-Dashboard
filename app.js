@@ -85,16 +85,20 @@ document.addEventListener('DOMContentLoaded', async function () {
 
             // ─── Update cards ─────────────────────────────────────────────
             // Card 1 – Total Customer Count
-            setCard(1, master.total_customer_count.toLocaleString('en-IN'));
+            const el1 = document.getElementById('cardTotalCustomers');
+            if (el1) el1.textContent = master.total_customer_count.toLocaleString('en-IN');
 
             // Card 2 – Total Bonus Points Given (Indian format)
-            setCard(2, fmtPts(master.total_bonus_point_given));
+            const el2 = document.getElementById('cardBonusPoints');
+            if (el2) el2.textContent = fmtPts(master.total_bonus_point_given);
 
             // Card 3 – Total Purchase Count
-            setCard(3, stats.purchase_count.toLocaleString('en-IN'));
+            const el3 = document.getElementById('cardPurchaseCount');
+            if (el3) el3.textContent = stats.purchase_count.toLocaleString('en-IN');
 
             // Card 4 – Total Redeemed Count
-            setCard(4, stats.redeemed_count.toLocaleString('en-IN'));
+            const el4 = document.getElementById('cardRedeemedCount');
+            if (el4) el4.textContent = stats.redeemed_count.toLocaleString('en-IN');
 
             // Card 5 – Total Point Redeemed Value (Indian format)
             const el5 = document.getElementById('cardPointRedeemed');
@@ -182,19 +186,36 @@ document.addEventListener('DOMContentLoaded', async function () {
             const fmtRupee = (v) => '₹' + toIndian(v);
             const fmtPct = (v) => Math.abs(v - Math.round(v)) < 0.005 ? Math.round(v) + '%' : v.toFixed(2) + '%';
             
-            document.getElementById('nc-cardTotalCustomers').textContent = toIndian(master.total_customer_count);
-            document.getElementById('nc-cardBonusPoints').textContent = toIndian(master.total_bonus_point_given);
-            document.getElementById('nc-cardPurchaseCount').textContent = toIndian(stats.purchase_count);
-            document.getElementById('nc-cardRedeemedCount').textContent = toIndian(stats.redeemed_count);
-            document.getElementById('nc-cardPointRedeemed').textContent = toIndian(stats.point_redeemed_value);
-            document.getElementById('nc-cardRedeemedPurchase').textContent = fmtRupee(stats.redeemed_purchase_value);
+            // Use master.total_customer_count – this is the true new customer count from API
+            const ncTotal = document.getElementById('nc-cardTotalCustomers');
+            if (ncTotal) ncTotal.textContent = toIndian(master.total_customer_count);
+            
+            const ncBonus = document.getElementById('nc-cardBonusPoints');
+            if (ncBonus) ncBonus.textContent = toIndian(master.total_bonus_point_given);
+            
+            const ncPurchase = document.getElementById('nc-cardPurchaseCount');
+            if (ncPurchase) ncPurchase.textContent = toIndian(stats.purchase_count);
+            
+            const ncRedeemed = document.getElementById('nc-cardRedeemedCount');
+            if (ncRedeemed) ncRedeemed.textContent = toIndian(stats.redeemed_count);
+            
+            const ncPointRed = document.getElementById('nc-cardPointRedeemed');
+            if (ncPointRed) ncPointRed.textContent = toIndian(stats.point_redeemed_value);
+            
+            const ncRedPurch = document.getElementById('nc-cardRedeemedPurchase');
+            if (ncRedPurch) ncRedPurch.textContent = fmtRupee(stats.redeemed_purchase_value);
             
             const discountPct = stats.loyalty_discount_pct;
-            document.getElementById('nc-cardDiscountPct').textContent = fmtPct(discountPct);
-            document.getElementById('nc-discountProgressBar').style.width = Math.min(discountPct * 10, 100) + '%';
+            const ncDisc = document.getElementById('nc-cardDiscountPct');
+            if (ncDisc) ncDisc.textContent = fmtPct(discountPct);
+            const ncBar = document.getElementById('nc-discountProgressBar');
+            if (ncBar) ncBar.style.width = Math.min(discountPct * 10, 100) + '%';
             
-            document.getElementById('nc-cardAvgPurchase').textContent = fmtRupee(stats.avg_purchase_value);
-            document.getElementById('nc-cardAvgRedemption').textContent = toIndian(stats.avg_loyalty_redemption);
+            const ncAvgP = document.getElementById('nc-cardAvgPurchase');
+            if (ncAvgP) ncAvgP.textContent = fmtRupee(stats.avg_purchase_value);
+            
+            const ncAvgR = document.getElementById('nc-cardAvgRedemption');
+            if (ncAvgR) ncAvgR.textContent = toIndian(stats.avg_loyalty_redemption);
             
             document.querySelectorAll('.nc-card').forEach((card, i) => {
                 card.style.opacity = '0';
@@ -205,9 +226,149 @@ document.addEventListener('DOMContentLoaded', async function () {
                     card.style.transform = 'translateY(0)';
                 }, 30 * i);
             });
+
+            // Render New Customer trend chart
+            if (data.trend && document.getElementById('newTrendChart')) {
+                if (window._newTrendChartInst) window._newTrendChartInst.destroy();
+                window._newTrendChartInst = new Chart(
+                    document.getElementById('newTrendChart'),
+                    {
+                        type: 'bar',
+                        data: {
+                            labels: data.trend.labels.map(l => {
+                                const d = new Date(l);
+                                return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+                            }),
+                            datasets: [{
+                                label: 'New Customers',
+                                data: data.trend.data,
+                                backgroundColor: 'rgba(16,185,129,0.7)',
+                                borderColor: '#059669',
+                                borderWidth: 1,
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { maxTicksLimit: 20, font: { size: 10 } } },
+                                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } }
+                            }
+                        }
+                    }
+                );
+            }
             
         } catch(e) {
             console.error('Failed to fetch new customer metrics:', e);
+        }
+    }
+
+    async function fetchRepeatCustomerMetrics(start = '', end = '') {
+        try {
+            const response = await fetch(`/api/repeat-customer-metrics?start=${start}&end=${end}`);
+            const data = await response.json();
+            
+            if (!data || data.error) return;
+            
+            const master = data.master_stats;
+            const stats  = data.range_stats;
+
+            function toIndian(num) {
+                num = Math.round(num);
+                const s = String(num);
+                if (s.length <= 3) return s;
+                let res = s.slice(-3);
+                let rest = s.slice(0, s.length - 3);
+                while (rest.length > 2) {
+                    res = rest.slice(-2) + ',' + res;
+                    rest = rest.slice(0, rest.length - 2);
+                }
+                if (rest.length) res = rest + ',' + res;
+                return res;
+            }
+            
+            const fmtRupee = (v) => '₹' + toIndian(v);
+            const fmtPct = (v) => Math.abs(v - Math.round(v)) < 0.005 ? Math.round(v) + '%' : v.toFixed(2) + '%';
+            
+            const rcTotal = document.getElementById('rc-cardTotalCustomers');
+            if (rcTotal) rcTotal.textContent = toIndian(master.total_customer_count);
+            
+            const rcBonus = document.getElementById('rc-cardBonusPoints');
+            if (rcBonus) rcBonus.textContent = toIndian(master.total_bonus_point_given);
+            
+            const rcPurchase = document.getElementById('rc-cardPurchaseCount');
+            if (rcPurchase) rcPurchase.textContent = toIndian(stats.purchase_count);
+            
+            const rcRedeemed = document.getElementById('rc-cardRedeemedCount');
+            if (rcRedeemed) rcRedeemed.textContent = toIndian(stats.redeemed_count);
+            
+            const rcPointRed = document.getElementById('rc-cardPointRedeemed');
+            if (rcPointRed) rcPointRed.textContent = toIndian(stats.point_redeemed_value);
+            
+            const rcRedPurch = document.getElementById('rc-cardRedeemedPurchase');
+            if (rcRedPurch) rcRedPurch.textContent = fmtRupee(stats.redeemed_purchase_value);
+            
+            const discountPct = stats.loyalty_discount_pct;
+            const rcDisc = document.getElementById('rc-cardDiscountPct');
+            if (rcDisc) rcDisc.textContent = fmtPct(discountPct);
+            const rcBar = document.getElementById('rc-discountProgressBar');
+            if (rcBar) rcBar.style.width = Math.min(discountPct * 10, 100) + '%';
+            
+            const rcAvgP = document.getElementById('rc-cardAvgPurchase');
+            if (rcAvgP) rcAvgP.textContent = fmtRupee(stats.avg_purchase_value);
+            
+            const rcAvgR = document.getElementById('rc-cardAvgRedemption');
+            if (rcAvgR) rcAvgR.textContent = toIndian(stats.avg_loyalty_redemption);
+            
+            document.querySelectorAll('.rc-card').forEach((card, i) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(15px)';
+                setTimeout(() => {
+                    card.style.transition = 'all 0.4s ease';
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, 30 * i);
+            });
+
+            // Render Repeat Customer trend chart
+            if (data.trend && document.getElementById('repeatTrendChart')) {
+                if (window._repeatTrendChartInst) window._repeatTrendChartInst.destroy();
+                window._repeatTrendChartInst = new Chart(
+                    document.getElementById('repeatTrendChart'),
+                    {
+                        type: 'bar',
+                        data: {
+                            labels: data.trend.labels.map(l => {
+                                const d = new Date(l);
+                                return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
+                            }),
+                            datasets: [{
+                                label: 'Repeat Customers',
+                                data: data.trend.data,
+                                backgroundColor: 'rgba(37,99,235,0.7)',
+                                borderColor: '#2563eb',
+                                borderWidth: 1,
+                                borderRadius: 4
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: { legend: { display: false } },
+                            scales: {
+                                x: { grid: { display: false }, ticks: { maxTicksLimit: 20, font: { size: 10 } } },
+                                y: { beginAtZero: true, grid: { color: 'rgba(0,0,0,0.05)' } }
+                            }
+                        }
+                    }
+                );
+            }
+            
+        } catch(e) {
+            console.error('Failed to fetch repeat customer metrics:', e);
         }
     }
     // ─── Customer Trend Chart ──────────────────────────────────────────────
@@ -1284,16 +1445,31 @@ document.addEventListener('DOMContentLoaded', async function () {
         loadCustomerClassification('', '');
     });
 
-    // ─── New Customer Metrics section filter ─────────────────────────────────
-    document.getElementById('ncApplyFilter')?.addEventListener('click', () => {
-        const s = document.getElementById('ncFrom').value;
-        const e = document.getElementById('ncTo').value;
-        fetchNewCustomerMetrics(s, e);
-    });
-    document.getElementById('ncClearFilter')?.addEventListener('click', () => {
-        document.getElementById('ncFrom').value = '';
-        document.getElementById('ncTo').value   = '';
-        fetchNewCustomerMetrics('', '');
+    // ─── Overview Sub-Tab Switching ───────────────────────────────────────────
+    let repeatLoaded = false;
+    let newCustLoaded = false;
+    document.querySelectorAll('.overview-tab-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Update active button
+            document.querySelectorAll('.overview-tab-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Hide all panels, show target
+            document.querySelectorAll('.overview-panel').forEach(p => p.classList.remove('active-overview-panel'));
+            const targetId = btn.getAttribute('data-overview-target');
+            const targetPanel = document.getElementById(targetId);
+            if (targetPanel) targetPanel.classList.add('active-overview-panel');
+
+            // Lazy-load repeat/new metrics on first switch
+            if (targetId === 'repeatMetricsPanel' && !repeatLoaded) {
+                repeatLoaded = true;
+                fetchRepeatCustomerMetrics();
+            }
+            if (targetId === 'newMetricsPanel' && !newCustLoaded) {
+                newCustLoaded = true;
+                fetchNewCustomerMetrics();
+            }
+        });
     });
 
     // ─── Reload classification when its tab is clicked ───────────────────────
@@ -1309,5 +1485,5 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     // Load all sections independently on page load
     loadCustomerClassification();
-    fetchNewCustomerMetrics();
+
 });
