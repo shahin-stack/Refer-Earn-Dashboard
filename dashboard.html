@@ -30,6 +30,9 @@
                 <a href="#ageReportSection" class="nav-item tab-link" data-target="ageReportSection">
                     <span class="nav-icon">🎯</span> User Insights
                 </a>
+                <a href="#districtReportSection" class="nav-item tab-link" data-target="districtReportSection">
+                    <span class="nav-icon">📍</span> Top 20 Districts Summary
+                </a>
                 <a href="#customerClassificationSection" class="nav-item tab-link" data-target="customerClassificationSection">
                     <span class="nav-icon">🔍</span> Customer Classification
                 </a>
@@ -486,7 +489,44 @@
                 </div>
             </section>
 
-            <!-- ── Section 06 : Customer Classification ──────────────── -->
+            <!-- ── Section 03 : Top 20 Districts ───────────────────── -->
+            <section class="section tab-section" id="districtReportSection">
+                <div class="district-section-header">
+                    <div class="district-section-meta">
+                        <div class="section-badge">Section 03</div>
+                        <h2 class="section-title" style="margin-bottom:0.25rem;">Top 20 Districts Summary</h2>
+                        <p class="page-subtitle">Refer &amp; Earn members segmented by geographical district</p>
+                        <div class="section-date-filter">
+                            <div class="sdf-group"><label for="districtFrom">From</label><input type="date" id="districtFrom" class="sdf-input"></div>
+                            <div class="sdf-group"><label for="districtTo">To</label><input type="date" id="districtTo" class="sdf-input"></div>
+                            <button class="sdf-apply-btn" id="districtApplyFilter">Apply</button>
+                            <button class="sdf-clear-btn" id="districtClearFilter">Clear</button>
+                        </div>
+                    </div>
+                    <button class="btn-district-export" id="districtExportBtn" title="Export district report to Excel">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                        </svg>
+                        Export to Excel
+                    </button>
+                </div>
+                <div class="glass district-table-card">
+                    <div class="district-table-header">
+                        <span class="district-table-icon">📍</span>
+                        <div>
+                            <h3 class="chart-title">District-wise Report</h3>
+                            <p class="chart-subtitle">Top 20 most populated districts</p>
+                        </div>
+                    </div>
+                    <table class="district-table" id="districtTable">
+                        <thead><tr><th style="width:10%">Rank</th><th>District</th><th style="width:25%">Count</th></tr></thead>
+                        <tbody id="districtTableBody"><tr><td colspan="3" class="loading-cell">Loading…</td></tr></tbody>
+                        <tfoot><tr class="total-row" id="districtTotalRow"><td colspan="2">Total (Top 20)</td><td id="districtTotalCount">—</td></tr></tfoot>
+                    </table>
+                </div>
+            </section>
+
+            <!-- ── Section 04 : Customer Classification ────────────────── -->
             <section class="section tab-section" id="customerClassificationSection">
                 <div class="district-section-header">
                     <div class="district-section-meta">
