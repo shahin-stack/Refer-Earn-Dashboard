@@ -1445,6 +1445,32 @@ document.addEventListener('DOMContentLoaded', async function () {
         loadCustomerClassification('', '');
     });
 
+    // ─── Repeat Customer Metrics date filter ─────────────────────────────────
+    document.getElementById('rcApplyFilter')?.addEventListener('click', () => {
+        const s = document.getElementById('rcFrom').value;
+        const e = document.getElementById('rcTo').value;
+        if (!s || !e) { alert('Please select both From and To dates.'); return; }
+        fetchRepeatCustomerMetrics(s, e);
+    });
+    document.getElementById('rcClearFilter')?.addEventListener('click', () => {
+        document.getElementById('rcFrom').value = '';
+        document.getElementById('rcTo').value   = '';
+        fetchRepeatCustomerMetrics('', '');
+    });
+
+    // ─── New Customer Metrics date filter ────────────────────────────────────
+    document.getElementById('ncApplyFilter')?.addEventListener('click', () => {
+        const s = document.getElementById('ncFrom').value;
+        const e = document.getElementById('ncTo').value;
+        if (!s || !e) { alert('Please select both From and To dates.'); return; }
+        fetchNewCustomerMetrics(s, e);
+    });
+    document.getElementById('ncClearFilter')?.addEventListener('click', () => {
+        document.getElementById('ncFrom').value = '';
+        document.getElementById('ncTo').value   = '';
+        fetchNewCustomerMetrics('', '');
+    });
+
     // ─── Overview Sub-Tab Switching ───────────────────────────────────────────
     let repeatLoaded = false;
     let newCustLoaded = false;
