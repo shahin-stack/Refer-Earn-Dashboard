@@ -33,6 +33,9 @@
                 <a href="#districtReportSection" class="nav-item tab-link" data-target="districtReportSection">
                     <span class="nav-icon">📍</span> Top 20 Districts Summary
                 </a>
+                <a href="#cohortAnalysisSection" class="nav-item tab-link" data-target="cohortAnalysisSection">
+                    <span class="nav-icon">📈</span> Cohort Analysis
+                </a>
             </nav>
             <div class="sidebar-footer">
                 <p>System v1.2.4</p>
@@ -521,6 +524,78 @@
                         <tfoot><tr class="total-row" id="districtTotalRow"><td colspan="2">Total (Top 20)</td><td id="districtTotalCount">—</td></tr></tfoot>
                     </table>
                 </div>
+            </section>
+
+            <!-- ── Cohort Analysis Section ─────────────────────────────── -->
+            <section class="section tab-section" id="cohortAnalysisSection">
+
+                <!-- Header -->
+                <div class="district-section-header">
+                    <div class="district-section-meta">
+                        <div class="section-badge">Cohort</div>
+                        <h2 class="section-title" style="margin-bottom:0.25rem;">Monthly Cohort Analysis</h2>
+                        <p class="page-subtitle">Track how customers acquired each month continue purchasing over time</p>
+                    </div>
+                </div>
+
+                <!-- Summary KPI cards -->
+                <div class="cohort-kpi-row">
+                    <div class="glass cohort-kpi-card">
+                        <div class="cohort-kpi-icon">📅</div>
+                        <div class="cohort-kpi-info">
+                            <span class="cohort-kpi-label">Total Cohorts</span>
+                            <span class="cohort-kpi-value" id="cohortTotalCohorts">—</span>
+                            <span class="cohort-kpi-sub">Distinct cohort months</span>
+                        </div>
+                    </div>
+                    <div class="glass cohort-kpi-card">
+                        <div class="cohort-kpi-icon">👥</div>
+                        <div class="cohort-kpi-info">
+                            <span class="cohort-kpi-label">Total Customers Tracked</span>
+                            <span class="cohort-kpi-value" id="cohortTotalCustomers">—</span>
+                            <span class="cohort-kpi-sub">Sum of all cohort sizes</span>
+                        </div>
+                    </div>
+                    <div class="glass cohort-kpi-card">
+                        <div class="cohort-kpi-icon">🔁</div>
+                        <div class="cohort-kpi-info">
+                            <span class="cohort-kpi-label">Avg Month-1 Retention</span>
+                            <span class="cohort-kpi-value" id="cohortAvgM1Retention">—</span>
+                            <span class="cohort-kpi-sub">Across all cohorts with Month 1 data</span>
+                        </div>
+                    </div>
+                    <div class="glass cohort-kpi-card">
+                        <div class="cohort-kpi-icon">🏆</div>
+                        <div class="cohort-kpi-info">
+                            <span class="cohort-kpi-label">Best Cohort (M1)</span>
+                            <span class="cohort-kpi-value" id="cohortBestCohort">—</span>
+                            <span class="cohort-kpi-sub">Highest Month-1 retention rate</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- View-mode toggle + legend -->
+                <div class="cohort-controls">
+                    <div class="cohort-view-toggle">
+                        <button class="cohort-view-btn active" data-view="retention">Retention %</button>
+                        <button class="cohort-view-btn" data-view="revenue">Revenue (₹)</button>
+                        <button class="cohort-view-btn" data-view="avg_purchase">Avg Purchase</button>
+                        <button class="cohort-view-btn" data-view="bonus">Bonus Redeemed</button>
+                    </div>
+                    <div class="cohort-legend">
+                        <span class="cohort-legend-label">Low</span>
+                        <div class="cohort-legend-bar"></div>
+                        <span class="cohort-legend-label">High</span>
+                    </div>
+                </div>
+
+                <!-- Matrix table wrapper (scrollable) -->
+                <div class="glass cohort-table-wrapper">
+                    <div id="cohortTableContainer" style="overflow-x:auto;">
+                        <div class="loading-cell" style="padding:3rem;text-align:center;">⏳ Loading cohort data…</div>
+                    </div>
+                </div>
+
             </section>
 
 

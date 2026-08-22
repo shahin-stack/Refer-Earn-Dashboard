@@ -923,6 +923,187 @@ def repeat_customer_metrics():
 
 
 
+
+@app.route('/api/cohort-analysis')
+def cohort_analysis():
+    """
+    Monthly Cohort Retention Analysis.
+
+    Cohort month = calendar month of a customer's first-ever purchase in sales_data.
+    Only R&E participants (those in refer_point_data) are included.
+    Same mobile on same day → counted once per (cohort_month, month_offset) cell.
+
+    Response:
+      cohorts  : list of cohort rows, each with cohort_label, cohort_size, and cells list
+      max_offset: highest month offset present in the data
+    """
+    from datetime import datetime
+
+    try:
+        client   = get_ch_client()
+        mob_re   = _normalize_mob_expr('customer_mobile_number')
+        mob_s    = _normalize_mob_expr('customer_mobile')
+
+        # ── Step 1: cohort sizes ─────────────────────────────────────────
+        size_q = f"""
+            WITH
+            re_participants AS (
+                SELECT DISTINCT {mob_re} AS mob
+                FROM refer_point_data
+                WHERE customer_mobile_number != ''
+                  AND length({mob_re}) = 10
+            ),
+            first_purchase AS (
+                SELECT
+                    {mob_s} AS mob,
+                    toStartOfMonth(min(parsed_date)) AS cohort_month
+                FROM sales_data
+                WHERE customer_mobile != ''
+                  AND length({mob_s}) = 10
+                  AND {mob_s} IN (SELECT mob FROM re_participants)
+                GROUP BY mob
+            )
+            SELECT
+                cohort_month,
+                count() AS cohort_size
+            FROM first_purchase
+            GROUP BY cohort_month
+            ORDER BY cohort_month ASC
+        """
+        size_rows = client.query(size_q).result_rows
+        # Build a dict: cohort_month_str -> size
+        cohort_sizes = {}
+        cohort_months_ordered = []
+        for r in size_rows:
+            cm = str(r[0])[:7]   # 'YYYY-MM'
+            cohort_sizes[cm] = int(r[1])
+            cohort_months_ordered.append(cm)
+
+        if not cohort_months_ordered:
+            return jsonify({'cohorts': [], 'max_offset': 0})
+
+        # ── Step 2: per-cohort per-month-offset metrics ──────────────────
+        metrics_q = f"""
+            WITH
+            re_participants AS (
+                SELECT DISTINCT {mob_re} AS mob
+                FROM refer_point_data
+                WHERE customer_mobile_number != ''
+                  AND length({mob_re}) = 10
+            ),
+            first_purchase AS (
+                SELECT
+                    {mob_s} AS mob,
+                    toStartOfMonth(min(parsed_date)) AS cohort_month
+                FROM sales_data
+                WHERE customer_mobile != ''
+                  AND length({mob_s}) = 10
+                  AND {mob_s} IN (SELECT mob FROM re_participants)
+                GROUP BY mob
+            ),
+            -- Daily dedup: one row per (mob, day) to avoid double-counting
+            -- same customer purchasing multiple times in one day
+            daily_purchases AS (
+                SELECT
+                    {mob_s} AS mob,
+                    parsed_date,
+                    sum(total_value)                         AS day_revenue,
+                    sum(abs(toFloat64OrZero(point_redemption))) AS day_redemption
+                FROM sales_data
+                WHERE customer_mobile != ''
+                  AND length({mob_s}) = 10
+                  AND {mob_s} IN (SELECT mob FROM re_participants)
+                GROUP BY mob, parsed_date
+            ),
+            monthly_activity AS (
+                SELECT
+                    fp.cohort_month,
+                    dp.mob,
+                    toStartOfMonth(dp.parsed_date)                                      AS activity_month,
+                    dateDiff('month', fp.cohort_month, toStartOfMonth(dp.parsed_date))  AS month_offset,
+                    sum(dp.day_revenue)                                                 AS revenue,
+                    sum(dp.day_redemption)                                              AS redemption
+                FROM daily_purchases dp
+                JOIN first_purchase fp ON dp.mob = fp.mob
+                WHERE month_offset >= 0
+                GROUP BY fp.cohort_month, dp.mob, toStartOfMonth(dp.parsed_date), month_offset
+            )
+            SELECT
+                formatDateTime(cohort_month, '%Y-%m')  AS cohort_ym,
+                month_offset,
+                countDistinct(mob)                     AS active_customers,
+                round(sum(revenue), 2)                 AS total_revenue,
+                round(sum(redemption), 2)              AS total_redemption,
+                round(sum(revenue) / countDistinct(mob), 2) AS avg_purchase_value
+            FROM monthly_activity
+            GROUP BY cohort_ym, month_offset
+            ORDER BY cohort_ym ASC, month_offset ASC
+        """
+        metrics_rows = client.query(metrics_q).result_rows
+
+        # ── Step 3: assemble response ────────────────────────────────────
+        # Build dict: cohort_ym -> { month_offset -> metrics }
+        cell_map = {}
+        max_offset = 0
+        for r in metrics_rows:
+            ym          = str(r[0])
+            offset      = int(r[1])
+            active      = int(r[2])
+            revenue     = float(r[3]) if r[3] else 0.0
+            redemption  = float(r[4]) if r[4] else 0.0
+            avg_purch   = float(r[5]) if r[5] else 0.0
+            if ym not in cell_map:
+                cell_map[ym] = {}
+            cell_map[ym][offset] = {
+                'active':        active,
+                'revenue':       revenue,
+                'bonus_redeemed': redemption,
+                'avg_purchase':  avg_purch
+            }
+            if offset > max_offset:
+                max_offset = offset
+
+        cohorts = []
+        for ym in cohort_months_ordered:
+            size = cohort_sizes.get(ym, 0)
+            cells_raw = cell_map.get(ym, {})
+            cells = []
+            for offset in range(0, max_offset + 1):
+                if offset in cells_raw:
+                    d = cells_raw[offset]
+                    cells.append({
+                        'month_offset':   offset,
+                        'active':         d['active'],
+                        'retention_pct':  round(d['active'] / size * 100, 1) if size else 0,
+                        'revenue':        d['revenue'],
+                        'bonus_redeemed': d['bonus_redeemed'],
+                        'avg_purchase':   d['avg_purchase'],
+                    })
+                else:
+                    cells.append(None)   # future/no data → renders as "—"
+
+            # Parse friendly label: '2026-01' → 'Jan 2026'
+            try:
+                dt = datetime.strptime(ym, '%Y-%m')
+                label = dt.strftime('%b %Y')
+            except Exception:
+                label = ym
+
+            cohorts.append({
+                'cohort_month': ym,
+                'cohort_label': label,
+                'cohort_size':  size,
+                'cells':        cells,
+            })
+
+        return jsonify({'cohorts': cohorts, 'max_offset': max_offset})
+
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': str(e)}), 500
+
+
 if __name__ == '__main__':
     print("Starting Flask Dashboard Server on port 8080...")
     app.run(port=8080, debug=False)

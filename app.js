@@ -1525,10 +1525,174 @@ document.addEventListener('DOMContentLoaded', async function () {
                 const e = document.getElementById('ccTo')?.value   || '';
                 loadCustomerClassification(s, e);
             }
+            // Lazy-load cohort analysis on first visit
+            if (link.getAttribute('data-target') === 'cohortAnalysisSection' && !window._cohortLoaded) {
+                window._cohortLoaded = true;
+                fetchCohortAnalysis();
+            }
         });
     });
 
     // Load all sections independently on page load
     loadCustomerClassification();
+
+    // ─── Cohort Analysis ──────────────────────────────────────────────────────
+    let _cohortData = null;   // cache API response
+    let _cohortView = 'retention';  // current view mode
+
+    function toIndianNum(n) {
+        n = Math.round(n);
+        const s = String(n);
+        if (s.length <= 3) return s;
+        let res = s.slice(-3);
+        let rest = s.slice(0, s.length - 3);
+        while (rest.length > 2) { res = rest.slice(-2) + ',' + res; rest = rest.slice(0, rest.length - 2); }
+        if (rest.length) res = rest + ',' + res;
+        return res;
+    }
+
+    function cohortHeatColor(pct, maxPct, view) {
+        // Returns rgba string based on how high value is relative to max in column
+        const ratio = maxPct > 0 ? Math.min(pct / maxPct, 1) : 0;
+        if (view === 'retention') {
+            // Blue heatmap
+            const alpha = 0.07 + ratio * 0.80;
+            const textDark = ratio > 0.55;
+            return { bg: `rgba(37,99,235,${alpha.toFixed(2)})`, text: textDark ? '#fff' : '#1e293b' };
+        } else if (view === 'revenue' || view === 'avg_purchase') {
+            // Emerald heatmap
+            const alpha = 0.07 + ratio * 0.80;
+            const textDark = ratio > 0.55;
+            return { bg: `rgba(5,150,105,${alpha.toFixed(2)})`, text: textDark ? '#fff' : '#1e293b' };
+        } else {
+            // Purple heatmap for bonus
+            const alpha = 0.07 + ratio * 0.80;
+            const textDark = ratio > 0.55;
+            return { bg: `rgba(124,58,237,${alpha.toFixed(2)})`, text: textDark ? '#fff' : '#1e293b' };
+        }
+    }
+
+    function getCellValue(cell, view) {
+        if (!cell) return null;
+        if (view === 'retention')   return { display: cell.retention_pct.toFixed(1) + '%', raw: cell.retention_pct };
+        if (view === 'revenue')     return { display: '₹' + toIndianNum(cell.revenue), raw: cell.revenue };
+        if (view === 'avg_purchase')return { display: '₹' + toIndianNum(cell.avg_purchase), raw: cell.avg_purchase };
+        if (view === 'bonus')       return { display: toIndianNum(cell.bonus_redeemed), raw: cell.bonus_redeemed };
+        return null;
+    }
+
+    function buildCohortTable(data, view) {
+        const { cohorts, max_offset } = data;
+        if (!cohorts || cohorts.length === 0) {
+            document.getElementById('cohortTableContainer').innerHTML =
+                '<div style="padding:3rem;text-align:center;color:var(--text-muted);">No cohort data available.</div>';
+            return;
+        }
+
+        // Compute column max values for heatmap scaling (skip offset 0)
+        const colMaxRaw = Array(max_offset + 1).fill(0);
+        cohorts.forEach(c => {
+            c.cells.forEach((cell, idx) => {
+                if (!cell || idx === 0) return;
+                const v = getCellValue(cell, view);
+                if (v && v.raw > colMaxRaw[idx]) colMaxRaw[idx] = v.raw;
+            });
+        });
+
+        // Build header
+        let html = '<table class="cohort-matrix"><thead><tr>';
+        html += '<th>Cohort Month</th><th style="text-align:right">New Customers</th>';
+        for (let i = 0; i <= max_offset; i++) {
+            html += `<th>Month ${i}</th>`;
+        }
+        html += '</tr></thead><tbody>';
+
+        // Build rows
+        cohorts.forEach(c => {
+            html += `<tr><td>${c.cohort_label}</td><td style="text-align:right">${toIndianNum(c.cohort_size)}</td>`;
+            c.cells.forEach((cell, idx) => {
+                if (!cell) {
+                    html += '<td class="cohort-cell-empty">—</td>';
+                    return;
+                }
+                if (idx === 0) {
+                    // Month 0: always anchor
+                    const v = getCellValue(cell, view);
+                    const display = view === 'retention' ? '100%' : (v ? v.display : '—');
+                    html += `<td class="cohort-cell-m0">${display}</td>`;
+                    return;
+                }
+                const v = getCellValue(cell, view);
+                if (!v) { html += '<td class="cohort-cell-empty">—</td>'; return; }
+                const { bg, text } = cohortHeatColor(v.raw, colMaxRaw[idx], view);
+                const tooltip = `Active: ${toIndianNum(cell.active)}\\nRetention: ${cell.retention_pct.toFixed(1)}%\\nRevenue: ₹${toIndianNum(cell.revenue)}\\nAvg Purchase: ₹${toIndianNum(cell.avg_purchase)}\\nBonus: ${toIndianNum(cell.bonus_redeemed)}`;
+                html += `<td class="cohort-cell-data" style="background:${bg};color:${text};" data-tooltip="${tooltip}">${v.display}</td>`;
+            });
+            html += '</tr>';
+        });
+
+        html += '</tbody></table>';
+        document.getElementById('cohortTableContainer').innerHTML = html;
+    }
+
+    function updateCohortSummary(data) {
+        const { cohorts } = data;
+        if (!cohorts || !cohorts.length) return;
+
+        const totalCohorts = cohorts.length;
+        const totalCustomers = cohorts.reduce((s, c) => s + c.cohort_size, 0);
+
+        // Avg Month-1 retention across cohorts that have Month-1 data
+        const m1retentions = cohorts
+            .filter(c => c.cells[1])
+            .map(c => c.cells[1].retention_pct);
+        const avgM1 = m1retentions.length
+            ? (m1retentions.reduce((a, b) => a + b, 0) / m1retentions.length).toFixed(1) + '%'
+            : '—';
+
+        // Best cohort by Month-1 retention
+        let bestLabel = '—', bestPct = 0;
+        cohorts.forEach(c => {
+            if (c.cells[1] && c.cells[1].retention_pct > bestPct) {
+                bestPct = c.cells[1].retention_pct;
+                bestLabel = c.cohort_label;
+            }
+        });
+
+        document.getElementById('cohortTotalCohorts').textContent   = totalCohorts;
+        document.getElementById('cohortTotalCustomers').textContent  = toIndianNum(totalCustomers);
+        document.getElementById('cohortAvgM1Retention').textContent  = avgM1;
+        document.getElementById('cohortBestCohort').textContent      = bestLabel;
+    }
+
+    async function fetchCohortAnalysis() {
+        const container = document.getElementById('cohortTableContainer');
+        if (!container) return;
+        container.innerHTML = '<div style="padding:3rem;text-align:center;color:var(--text-muted);">⏳ Loading cohort data… This may take a few seconds.</div>';
+
+        try {
+            const resp = await fetch('/api/cohort-analysis');
+            const data = await resp.json();
+            if (data.error) throw new Error(data.error);
+
+            _cohortData = data;
+            buildCohortTable(data, _cohortView);
+            updateCohortSummary(data);
+
+        } catch(e) {
+            container.innerHTML = `<div style="padding:3rem;text-align:center;color:var(--accent-red);">⚠️ Failed to load cohort data: ${e.message}</div>`;
+            console.error('Cohort analysis error:', e);
+        }
+    }
+
+    // View-mode toggle buttons
+    document.querySelectorAll('.cohort-view-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            document.querySelectorAll('.cohort-view-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            _cohortView = btn.getAttribute('data-view');
+            if (_cohortData) buildCohortTable(_cohortData, _cohortView);
+        });
+    });
 
 });
