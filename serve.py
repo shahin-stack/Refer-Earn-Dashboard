@@ -927,9 +927,11 @@ def repeat_customer_metrics():
 @app.route('/api/cohort-analysis')
 def cohort_analysis():
     """
-    Monthly Cohort Retention Analysis.
+    Monthly Cohort Retention Analysis — R&E Programme Period Only.
 
-    Cohort month = calendar month of a customer's first-ever purchase in sales_data.
+    Cohort month = calendar month of a customer's first purchase on or after
+    the R&E programme start date (2026-01-16). Historical pre-programme purchases
+    are excluded so cohorts align with the 24,337 unique buyers in the programme.
     Only R&E participants (those in refer_point_data) are included.
     Same mobile on same day → counted once per (cohort_month, month_offset) cell.
 
@@ -960,6 +962,7 @@ def cohort_analysis():
                 FROM sales_data
                 WHERE customer_mobile != ''
                   AND length({mob_s}) = 10
+                  AND parsed_date >= '2026-01-16'
                   AND {mob_s} IN (SELECT mob FROM re_participants)
                 GROUP BY mob
             )
@@ -998,6 +1001,7 @@ def cohort_analysis():
                 FROM sales_data
                 WHERE customer_mobile != ''
                   AND length({mob_s}) = 10
+                  AND parsed_date >= '2026-01-16'
                   AND {mob_s} IN (SELECT mob FROM re_participants)
                 GROUP BY mob
             ),
@@ -1012,6 +1016,7 @@ def cohort_analysis():
                 FROM sales_data
                 WHERE customer_mobile != ''
                   AND length({mob_s}) = 10
+                  AND parsed_date >= '2026-01-16'
                   AND {mob_s} IN (SELECT mob FROM re_participants)
                 GROUP BY mob, parsed_date
             ),
