@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from flask import Flask, render_template, request, jsonify, send_from_directory, send_file
 import sqlite3
 import pandas as pd
 import os
@@ -37,6 +37,13 @@ def api_cache_refresh():
     """Force-clear the Google Sheets cache so next request re-fetches live data."""
     invalidate_cache()
     return jsonify({'ok': True, 'message': 'Cache cleared. Next request will fetch fresh data from Google Sheets.'})
+
+
+@app.route('/download/redeemer-customers')
+def download_redeemer_excel():
+    """Serve the pre-generated redeemer customers Excel as a browser download."""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'redeemer_customers_16859.xlsx')
+    return send_file(path, as_attachment=True, download_name='redeemer_customers_16859.xlsx')
 
 def get_ch_client():
     import clickhouse_connect

@@ -1093,8 +1093,29 @@ document.addEventListener('DOMContentLoaded', async function () {
                 const targetEl = document.getElementById(targetId);
                 if (targetEl) targetEl.classList.add('active-tab');
             }
+
+            // 3. If Overview is clicked, always default to Core Performance tab
+            if (targetId === 'overviewSection') {
+                document.querySelectorAll('.overview-tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.overview-panel').forEach(p => p.classList.remove('active-overview-panel'));
+                const coreBtn   = document.getElementById('coreMetricsTab');
+                const corePanel = document.getElementById('coreMetricsPanel');
+                if (coreBtn)   coreBtn.classList.add('active');
+                if (corePanel) corePanel.classList.add('active-overview-panel');
+            }
         });
     });
+
+    // Ensure Core Performance is visible on initial page load
+    (function initDefaultOverviewTab() {
+        document.querySelectorAll('.overview-panel').forEach(p => p.classList.remove('active-overview-panel'));
+        document.querySelectorAll('.overview-tab-btn').forEach(b => b.classList.remove('active'));
+        const coreBtn   = document.getElementById('coreMetricsTab');
+        const corePanel = document.getElementById('coreMetricsPanel');
+        if (coreBtn)   coreBtn.classList.add('active');
+        if (corePanel) corePanel.classList.add('active-overview-panel');
+    })();
+
 
     // ─── Anniversary Month Report ──────────────────────────────────────────
     async function loadAnniversaryMonthReport() {
