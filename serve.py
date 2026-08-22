@@ -285,18 +285,32 @@ def district_report():
         date_filter = ""
         if start_date and end_date:
             date_filter = f"AND substr(created_at, 1, 10) >= '{start_date}' AND substr(created_at, 1, 10) <= '{end_date}'"
+        # Fetch ALL districts (no LIMIT) so we can compute Others correctly
         query = f"""
             SELECT district, count() as cnt
             FROM loyalty_user_data
             WHERE district != '' {date_filter}
             GROUP BY district
             ORDER BY cnt DESC
-            LIMIT 20
         """
         result = client.query(query)
-        districts = [{'rank': i+1, 'district': row[0], 'count': int(row[1])} for i, row in enumerate(result.result_rows)]
-        total_top_20 = sum(d['count'] for d in districts)
-        return jsonify({'districts': districts, 'total': total_top_20})
+        all_rows = result.result_rows
+
+        # Top 19 named districts
+        top19 = [{'rank': i+1, 'district': row[0], 'count': int(row[1])}
+                 for i, row in enumerate(all_rows[:19])]
+
+        # "Others (20+)" = sum of all districts from rank 20 onwards
+        others_count = sum(int(r[1]) for r in all_rows[19:])
+        others_label = f"Others (20+)"
+
+        districts = top19
+        if others_count > 0:
+            districts = top19 + [{'rank': 20, 'district': others_label, 'count': others_count}]
+
+        total = sum(d['count'] for d in districts)
+        return jsonify({'districts': districts, 'total': total})
+
     except Exception as e:
         print("district-report CH error:", e)
         try:
@@ -309,9 +323,14 @@ def district_report():
                 df = df[df['created_at'].astype(str).str[:10] >= start_date]
             if end_date and 'created_at' in df.columns:
                 df = df[df['created_at'].astype(str).str[:10] <= end_date]
-            counts = df[col].value_counts().head(20)
-            districts = [{'rank': i+1, 'district': str(d), 'count': int(c)} for i, (d, c) in enumerate(counts.items())]
-            return jsonify({'districts': districts, 'total': int(counts.sum())})
+            counts = df[col].value_counts()
+            top19 = [{'rank': i+1, 'district': str(d), 'count': int(c)}
+                     for i, (d, c) in enumerate(list(counts.items())[:19])]
+            others_count = int(counts.iloc[19:].sum()) if len(counts) > 19 else 0
+            districts = top19
+            if others_count > 0:
+                districts = top19 + [{'rank': 20, 'district': 'Others (20+)', 'count': others_count}]
+            return jsonify({'districts': districts, 'total': sum(d['count'] for d in districts)})
         except Exception as e2:
             return jsonify({'error': str(e2)}), 500
 
