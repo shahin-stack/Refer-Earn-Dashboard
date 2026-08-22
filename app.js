@@ -1498,6 +1498,25 @@ document.addEventListener('DOMContentLoaded', async function () {
         });
     });
 
+    // ─── User Insights Sub-Tab Switching (Age · Birth Month · Anniversary) ──
+    document.querySelectorAll('[data-insights-target]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            // Update active button
+            document.querySelectorAll('[data-insights-target]').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+
+            // Hide all insights panels, show the target
+            const allPanels = ['ageInsightsPanel', 'birthInsightsPanel', 'anniversaryInsightsPanel'];
+            allPanels.forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.classList.remove('active-overview-panel');
+            });
+            const targetId = btn.getAttribute('data-insights-target');
+            const targetPanel = document.getElementById(targetId);
+            if (targetPanel) targetPanel.classList.add('active-overview-panel');
+        });
+    });
+
     // ─── Reload classification when its tab is clicked ───────────────────────
     document.querySelectorAll('.tab-link').forEach(link => {
         link.addEventListener('click', () => {

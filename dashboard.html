@@ -28,16 +28,7 @@
                     <span class="nav-icon">📊</span> Overview
                 </a>
                 <a href="#ageReportSection" class="nav-item tab-link" data-target="ageReportSection">
-                    <span class="nav-icon">🎂</span> Age-wise User Distribution
-                </a>
-                <a href="#districtReportSection" class="nav-item tab-link" data-target="districtReportSection">
-                    <span class="nav-icon">📍</span> Top 20 Districts Summary
-                </a>
-                <a href="#birthMonthSection" class="nav-item tab-link" data-target="birthMonthSection">
-                    <span class="nav-icon">📆</span> Birth Month Summary
-                </a>
-                <a href="#anniversaryMonthSection" class="nav-item tab-link" data-target="anniversaryMonthSection">
-                    <span class="nav-icon">💍</span> Anniversary Month Summary
+                    <span class="nav-icon">🎯</span> User Insights
                 </a>
                 <a href="#customerClassificationSection" class="nav-item tab-link" data-target="customerClassificationSection">
                     <span class="nav-icon">🔍</span> Customer Classification
@@ -389,220 +380,109 @@
             </section>
 
 
-            <!-- ── Section 02 : Age-wise User Distribution ───────────────── -->
+            <!-- ── Section 02 : User Insights (Age · Birth Month · Anniversary) ── -->
             <section class="section tab-section" id="ageReportSection">
-                <div class="age-section-header">
-                    <div class="age-section-meta">
+                <div class="district-section-header">
+                    <div class="district-section-meta">
                         <div class="section-badge">Section 02</div>
-                        <h2 class="section-title" style="margin-bottom:0.25rem;">Age-wise User Distribution</h2>
-                        <p class="page-subtitle">
-                            Refer &amp; Earn members segmented by age band &nbsp;·&nbsp;
-                            <span id="ageRefDate" style="color:var(--accent-blue); font-weight:600;"></span>
-                        </p>
-                        <div class="section-date-filter">
-                            <div class="sdf-group">
-                                <label for="ageFrom">From</label>
-                                <input type="date" id="ageFrom" class="sdf-input">
-                            </div>
-                            <div class="sdf-group">
-                                <label for="ageTo">To</label>
-                                <input type="date" id="ageTo" class="sdf-input">
-                            </div>
-                            <button class="sdf-apply-btn" id="ageApplyFilter">Apply</button>
-                            <button class="sdf-clear-btn" id="ageClearFilter">Clear</button>
+                        <h2 class="section-title" style="margin-bottom:0.5rem;">User Insights</h2>
+                        <p class="page-subtitle" style="margin-bottom:1rem;">Age distribution, birth month &amp; anniversary month breakdowns</p>
+                        <!-- Sub-tabs -->
+                        <div class="overview-tabs">
+                            <button class="overview-tab-btn active" data-insights-target="ageInsightsPanel" id="ageInsightsTab">🎂 Age-wise Distribution</button>
+                            <button class="overview-tab-btn" data-insights-target="birthInsightsPanel" id="birthInsightsTab">📆 Birth Month</button>
+                            <button class="overview-tab-btn" data-insights-target="anniversaryInsightsPanel" id="anniversaryInsightsTab">💍 Anniversary Month</button>
                         </div>
                     </div>
-                    <button class="btn-age-export" id="ageExportBtn" title="Export age report to Excel">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="7 10 12 15 17 10"/>
-                            <line x1="12" y1="15" x2="12" y2="3"/>
-                        </svg>
-                        Export to Excel
-                    </button>
                 </div>
 
-                <div class="age-report-layout">
-                    <!-- Table -->
-                    <div class="glass age-table-card">
-                        <div class="age-table-header">
-                            <span class="age-table-icon">🎂</span>
+                <!-- ── Panel 1: Age-wise Distribution ──────────────── -->
+                <div class="overview-panel active-overview-panel" id="ageInsightsPanel">
+                    <div class="overview-panel-header">
+                        <h3 class="overview-panel-title">Age-wise User Distribution</h3>
+                        <p class="overview-panel-sub">Refer &amp; Earn members segmented by age band &nbsp;·&nbsp;
+                            <span id="ageRefDate" style="color:var(--accent-blue);font-weight:600;"></span>
+                        </p>
+                        <div style="display:flex;gap:1rem;align-items:center;flex-wrap:wrap;margin-top:0.75rem;">
+                            <div class="section-date-filter">
+                                <div class="sdf-group"><label for="ageFrom">From</label><input type="date" id="ageFrom" class="sdf-input"></div>
+                                <div class="sdf-group"><label for="ageTo">To</label><input type="date" id="ageTo" class="sdf-input"></div>
+                                <button class="sdf-apply-btn" id="ageApplyFilter">Apply</button>
+                                <button class="sdf-clear-btn" id="ageClearFilter">Clear</button>
+                            </div>
+                            <button class="btn-age-export" id="ageExportBtn" title="Export age report to Excel">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+                                </svg>
+                                Export to Excel
+                            </button>
+                        </div>
+                    </div>
+                    <div class="age-report-layout">
+                        <div class="glass age-table-card">
+                            <div class="age-table-header">
+                                <span class="age-table-icon">🎂</span>
+                                <div>
+                                    <h3 class="chart-title">Age-wise Report</h3>
+                                    <p class="chart-subtitle">Refer &amp; Earn Age-wise report</p>
+                                </div>
+                            </div>
+                            <table class="age-table" id="ageTable">
+                                <thead><tr><th>Age Group</th><th>Count</th></tr></thead>
+                                <tbody id="ageTableBody"><tr><td colspan="2" class="loading-cell">Loading…</td></tr></tbody>
+                                <tfoot><tr class="total-row" id="ageTotalRow"><td>Total</td><td id="ageTotalCount">—</td></tr></tfoot>
+                            </table>
+                        </div>
+                        <div class="glass age-chart-card">
+                            <h3 class="chart-title">Distribution Chart</h3>
+                            <p class="chart-subtitle">Users per age band</p>
+                            <div class="age-chart-wrapper"><canvas id="ageBarChart"></canvas></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ── Panel 2: Birth Month Distribution ───────────── -->
+                <div class="overview-panel" id="birthInsightsPanel">
+                    <div class="overview-panel-header">
+                        <h3 class="overview-panel-title">Birth Month Distribution</h3>
+                        <p class="overview-panel-sub">Refer &amp; Earn members segmented by birth month</p>
+                    </div>
+                    <div class="glass district-table-card">
+                        <div class="district-table-header">
+                            <span class="district-table-icon">🎂</span>
                             <div>
-                                <h3 class="chart-title">Age-wise Report</h3>
-                                <p class="chart-subtitle">Refer &amp; Earn Age-wise report</p>
+                                <h3 class="chart-title">Birth Month Report</h3>
+                                <p class="chart-subtitle">Customer distribution (Jan–Dec)</p>
                             </div>
                         </div>
-                        <table class="age-table" id="ageTable">
-                            <thead>
-                                <tr>
-                                    <th>Age Group</th>
-                                    <th>Count</th>
-                                </tr>
-                            </thead>
-                            <tbody id="ageTableBody">
-                                <tr><td colspan="2" class="loading-cell">Loading…</td></tr>
-                            </tbody>
-                            <tfoot>
-                                <tr class="total-row" id="ageTotalRow">
-                                    <td>Total</td>
-                                    <td id="ageTotalCount">—</td>
-                                </tr>
-                            </tfoot>
+                        <table class="district-table" id="birthMonthTable">
+                            <thead><tr><th>Month</th><th style="width:25%;text-align:right">Customer Count</th><th style="width:25%;text-align:right">Action</th></tr></thead>
+                            <tbody id="birthMonthTableBody"><tr><td colspan="3" class="loading-cell">Loading…</td></tr></tbody>
+                            <tfoot><tr class="total-row" id="birthMonthTotalRow"><td>Total Customers</td><td id="birthMonthTotalCount">—</td><td></td></tr></tfoot>
                         </table>
                     </div>
-
-                    <!-- Bar Chart -->
-                    <div class="glass age-chart-card">
-                        <h3 class="chart-title">Distribution Chart</h3>
-                        <p class="chart-subtitle">Users per age band</p>
-                        <div class="age-chart-wrapper">
-                            <canvas id="ageBarChart"></canvas>
-                        </div>
-                    </div>
                 </div>
-            </section>
 
-            <!-- ── Section 03 : Top 20 Districts ───────────────────────── -->
-            <section class="section tab-section" id="districtReportSection">
-                <div class="district-section-header">
-                    <div class="district-section-meta">
-                        <div class="section-badge">Section 03</div>
-                        <h2 class="section-title" style="margin-bottom:0.25rem;">Top 20 Districts Summary</h2>
-                        <p class="page-subtitle">
-                            Refer &amp; Earn members segmented by geographical district
-                        </p>
-                        <div class="section-date-filter">
-                            <div class="sdf-group">
-                                <label for="districtFrom">From</label>
-                                <input type="date" id="districtFrom" class="sdf-input">
+                <!-- ── Panel 3: Anniversary Month Distribution ─────── -->
+                <div class="overview-panel" id="anniversaryInsightsPanel">
+                    <div class="overview-panel-header">
+                        <h3 class="overview-panel-title">Anniversary Month Distribution</h3>
+                        <p class="overview-panel-sub">Refer &amp; Earn members segmented by wedding anniversary month</p>
+                    </div>
+                    <div class="glass district-table-card">
+                        <div class="district-table-header">
+                            <span class="district-table-icon">💍</span>
+                            <div>
+                                <h3 class="chart-title">Anniversary Month Report</h3>
+                                <p class="chart-subtitle">Customer distribution (Jan–Dec)</p>
                             </div>
-                            <div class="sdf-group">
-                                <label for="districtTo">To</label>
-                                <input type="date" id="districtTo" class="sdf-input">
-                            </div>
-                            <button class="sdf-apply-btn" id="districtApplyFilter">Apply</button>
-                            <button class="sdf-clear-btn" id="districtClearFilter">Clear</button>
                         </div>
+                        <table class="district-table" id="anniversaryMonthTable">
+                            <thead><tr><th>Month</th><th style="width:25%;text-align:right">Customer Count</th><th style="width:25%;text-align:right">Action</th></tr></thead>
+                            <tbody id="anniversaryMonthTableBody"><tr><td colspan="3" class="loading-cell">Loading…</td></tr></tbody>
+                            <tfoot><tr class="total-row" id="anniversaryMonthTotalRow"><td>Total Customers</td><td id="anniversaryMonthTotalCount">—</td><td></td></tr></tfoot>
+                        </table>
                     </div>
-                    <button class="btn-district-export" id="districtExportBtn" title="Export district report to Excel">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="7 10 12 15 17 10"/>
-                            <line x1="12" y1="15" x2="12" y2="3"/>
-                        </svg>
-                        Export to Excel
-                    </button>
-                </div>
-
-                <div class="glass district-table-card">
-                    <div class="district-table-header">
-                        <span class="district-table-icon">📍</span>
-                        <div>
-                            <h3 class="chart-title">District-wise Report</h3>
-                            <p class="chart-subtitle">Top 20 most populated districts</p>
-                        </div>
-                    </div>
-                    <table class="district-table" id="districtTable">
-                        <thead>
-                            <tr>
-                                <th style="width:10%">Rank</th>
-                                <th>District</th>
-                                <th style="width:25%">Count</th>
-                            </tr>
-                        </thead>
-                        <tbody id="districtTableBody">
-                            <tr><td colspan="3" class="loading-cell">Loading…</td></tr>
-                        </tbody>
-                        <tfoot>
-                            <tr class="total-row" id="districtTotalRow">
-                                <td colspan="2">Total (Top 20)</td>
-                                <td id="districtTotalCount">—</td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </section>
-            <!-- ── Section 04 : Birth Month Distribution ────────────────────── -->
-            <section class="section tab-section" id="birthMonthSection">
-                <div class="district-section-header">
-                    <div class="district-section-meta">
-                        <div class="section-badge">Section 04</div>
-                        <h2 class="section-title" style="margin-bottom:0.25rem;">Birth Month Distribution</h2>
-                        <p class="page-subtitle">
-                            Refer &amp; Earn members segmented by birth month
-                        </p>
-                    </div>
-                </div>
-
-                <div class="glass district-table-card">
-                    <div class="district-table-header">
-                        <span class="district-table-icon">🎂</span>
-                        <div>
-                            <h3 class="chart-title">Birth Month Report</h3>
-                            <p class="chart-subtitle">Customer distribution (Jan-Dec)</p>
-                        </div>
-                    </div>
-                    <table class="district-table" id="birthMonthTable">
-                        <thead>
-                            <tr>
-                                <th>Month</th>
-                                <th style="width:25%; text-align:right">Customer Count</th>
-                                <th style="width:25%; text-align:right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="birthMonthTableBody">
-                            <tr><td colspan="3" class="loading-cell">Loading…</td></tr>
-                        </tbody>
-                        <tfoot>
-                            <tr class="total-row" id="birthMonthTotalRow">
-                                <td>Total Customers</td>
-                                <td id="birthMonthTotalCount">—</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
-                </div>
-            </section>
-
-            <!-- ── Section 05 : Anniversary Month Distribution ──────────── -->
-            <section class="section tab-section" id="anniversaryMonthSection">
-                <div class="district-section-header">
-                    <div class="district-section-meta">
-                        <div class="section-badge">Section 05</div>
-                        <h2 class="section-title" style="margin-bottom:0.25rem;">Anniversary Month Distribution</h2>
-                        <p class="page-subtitle">
-                            Refer &amp; Earn members segmented by wedding anniversary month
-                        </p>
-                    </div>
-                </div>
-
-                <div class="glass district-table-card">
-                    <div class="district-table-header">
-                        <span class="district-table-icon">💍</span>
-                        <div>
-                            <h3 class="chart-title">Anniversary Month Report</h3>
-                            <p class="chart-subtitle">Customer distribution (Jan-Dec)</p>
-                        </div>
-                    </div>
-                    <table class="district-table" id="anniversaryMonthTable">
-                        <thead>
-                            <tr>
-                                <th>Month</th>
-                                <th style="width:25%; text-align:right">Customer Count</th>
-                                <th style="width:25%; text-align:right">Action</th>
-                            </tr>
-                        </thead>
-                        <tbody id="anniversaryMonthTableBody">
-                            <tr><td colspan="3" class="loading-cell">Loading…</td></tr>
-                        </tbody>
-                        <tfoot>
-                            <tr class="total-row" id="anniversaryMonthTotalRow">
-                                <td>Total Customers</td>
-                                <td id="anniversaryMonthTotalCount">—</td>
-                                <td></td>
-                            </tr>
-                        </tfoot>
-                    </table>
                 </div>
             </section>
 
