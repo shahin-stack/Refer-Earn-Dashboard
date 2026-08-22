@@ -33,9 +33,6 @@
                 <a href="#districtReportSection" class="nav-item tab-link" data-target="districtReportSection">
                     <span class="nav-icon">📍</span> Top 20 Districts Summary
                 </a>
-                <a href="#customerClassificationSection" class="nav-item tab-link" data-target="customerClassificationSection">
-                    <span class="nav-icon">🔍</span> Customer Classification
-                </a>
             </nav>
             <div class="sidebar-footer">
                 <p>System v1.2.4</p>
@@ -523,125 +520,6 @@
                         <tbody id="districtTableBody"><tr><td colspan="3" class="loading-cell">Loading…</td></tr></tbody>
                         <tfoot><tr class="total-row" id="districtTotalRow"><td colspan="2">Total (Top 20)</td><td id="districtTotalCount">—</td></tr></tfoot>
                     </table>
-                </div>
-            </section>
-
-            <!-- ── Section 04 : Customer Classification ────────────────── -->
-            <section class="section tab-section" id="customerClassificationSection">
-                <div class="district-section-header">
-                    <div class="district-section-meta">
-                        <div class="section-badge">Section 06</div>
-                        <h2 class="section-title" style="margin-bottom:0.25rem;">Customer Classification</h2>
-                        <p class="page-subtitle">
-                            Refer &amp; Earn participants classified as Repeat vs New customers
-                            &nbsp;·&nbsp; Date range: <strong id="ccCutoffDisplay">Loading…</strong> &nbsp;·&nbsp; matched on <strong>Customer Mobile</strong>
-                        </p>
-                        <div class="section-date-filter">
-                            <div class="sdf-group">
-                                <label for="ccFrom">From</label>
-                                <input type="date" id="ccFrom" class="sdf-input">
-                            </div>
-                            <div class="sdf-group">
-                                <label for="ccTo">To</label>
-                                <input type="date" id="ccTo" class="sdf-input">
-                            </div>
-                            <button class="sdf-apply-btn" id="ccApplyFilter">Apply</button>
-                            <button class="sdf-clear-btn" id="ccClearFilter">Clear</button>
-                        </div>
-                    </div>
-                    <button class="btn-district-export" id="classificationExportBtn" title="Export classification report to Excel">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-                            <polyline points="7 10 12 15 17 10"/>
-                            <line x1="12" y1="15" x2="12" y2="3"/>
-                        </svg>
-                        Export to Excel
-                    </button>
-                </div>
-
-                <!-- KPI Summary Cards -->
-                <div class="classification-kpi-row">
-                    <div class="glass classif-card classif-total">
-                        <div class="classif-icon">🛒</div>
-                        <div class="classif-info">
-                            <span class="classif-label">Purchased in Selected Range</span>
-                            <span class="classif-value" id="ccBaseSize">—</span>
-                            <span class="classif-sub">Unique buyers within date range</span>
-                        </div>
-                    </div>
-                    <div class="glass classif-card classif-repeat">
-                        <div class="classif-icon">🔄</div>
-                        <div class="classif-info">
-                            <span class="classif-label">Repeat Customers</span>
-                            <span class="classif-value" id="ccRepeatCount">—</span>
-                            <span class="classif-pct repeat-pct" id="ccRepeatPct">—%</span>
-                            <span class="classif-sub" id="ccRepeatSub">Purchased before selected date</span>
-                        </div>
-                    </div>
-                    <div class="glass classif-card classif-new">
-                        <div class="classif-icon">✨</div>
-                        <div class="classif-info">
-                            <span class="classif-label">New Customers</span>
-                            <span class="classif-value" id="ccNewCount">—</span>
-                            <span class="classif-pct new-pct" id="ccNewPct">—%</span>
-                            <span class="classif-sub" id="ccNewSub">First purchase on/after selected date</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Chart + Table side by side -->
-                <div class="classification-layout">
-                    <!-- Doughnut Chart -->
-                    <div class="glass classif-chart-card">
-                        <h3 class="chart-title">Repeat vs New Split</h3>
-                        <p class="chart-subtitle">Percentage distribution of R&amp;E participants</p>
-                        <div class="classif-chart-wrapper">
-                            <canvas id="classificationDoughnut"></canvas>
-                        </div>
-                        <div class="classif-legend">
-                            <span class="legend-dot repeat-dot"></span><span>Repeat Customers</span>
-                            <span class="legend-dot new-dot"></span><span>New Customers</span>
-                        </div>
-                    </div>
-
-                    <!-- Summary Table -->
-                    <div class="glass classif-table-card">
-                        <div class="district-table-header">
-                            <span class="district-table-icon">📋</span>
-                            <div>
-                                <h3 class="chart-title">Classification Summary</h3>
-                                <p class="chart-subtitle">Breakdown by customer type</p>
-                            </div>
-                        </div>
-                        <table class="district-table" id="classificationTable">
-                            <thead>
-                                <tr>
-                                    <th>Customer Type</th>
-                                    <th style="text-align:right">Count</th>
-                                    <th style="text-align:right">Share %</th>
-                                </tr>
-                            </thead>
-                            <tbody id="classificationTableBody">
-                                <tr><td colspan="3" class="loading-cell">Loading…</td></tr>
-                            </tbody>
-                            <tfoot>
-                                <tr class="total-row">
-                                    <td>Total</td>
-                                    <td id="ccTableTotal" style="text-align:right">—</td>
-                                    <td style="text-align:right">100%</td>
-                                </tr>
-                            </tfoot>
-                        </table>
-                        <div class="classif-note">
-                            <strong>Note:</strong>
-                            Classification is <strong>dynamic</strong> based on the selected date range.
-                            &nbsp;·&nbsp;
-                            <strong>Repeat</strong> = customer had at least one purchase <em>before</em> the selected start date (existing buyer).
-                            &nbsp;·&nbsp;
-                            <strong>New</strong> = the selected start date is the customer's <em>first-ever</em> purchase date (no prior purchase history).
-                            Percentages are out of buyers in the selected range.
-                        </div>
-                    </div>
                 </div>
             </section>
 
