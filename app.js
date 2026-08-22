@@ -1103,17 +1103,34 @@ document.addEventListener('DOMContentLoaded', async function () {
                 if (coreBtn)   coreBtn.classList.add('active');
                 if (corePanel) corePanel.classList.add('active-overview-panel');
             }
+
+            // 4. If User Insights is clicked, always default to Age-wise Distribution tab
+            if (targetId === 'userInsightsSection') {
+                document.querySelectorAll('.overview-tab-btn[data-insights-target]').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('#userInsightsSection .overview-panel').forEach(p => p.classList.remove('active-overview-panel'));
+                const ageBtn   = document.getElementById('ageInsightsTab');
+                const agePanel = document.getElementById('ageInsightsPanel');
+                if (ageBtn)   ageBtn.classList.add('active');
+                if (agePanel) agePanel.classList.add('active-overview-panel');
+            }
         });
     });
 
-    // Ensure Core Performance is visible on initial page load
-    (function initDefaultOverviewTab() {
+    // Ensure default panels are visible on initial page load
+    (function initDefaultTabs() {
+        // Core Performance (Overview)
         document.querySelectorAll('.overview-panel').forEach(p => p.classList.remove('active-overview-panel'));
         document.querySelectorAll('.overview-tab-btn').forEach(b => b.classList.remove('active'));
         const coreBtn   = document.getElementById('coreMetricsTab');
         const corePanel = document.getElementById('coreMetricsPanel');
         if (coreBtn)   coreBtn.classList.add('active');
         if (corePanel) corePanel.classList.add('active-overview-panel');
+
+        // Age-wise Distribution (User Insights)
+        const ageBtn   = document.getElementById('ageInsightsTab');
+        const agePanel = document.getElementById('ageInsightsPanel');
+        if (ageBtn)   ageBtn.classList.add('active');
+        if (agePanel) agePanel.classList.add('active-overview-panel');
     })();
 
 
