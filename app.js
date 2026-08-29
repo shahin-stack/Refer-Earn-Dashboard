@@ -1576,7 +1576,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
     // ─── Cohort Analysis ──────────────────────────────────────────────────────
     let _cohortData = null;   // cache API response
-    let _cohortView = 'retention';  // current view mode
+    let _cohortView = 'repeat_count';  // current view mode
 
     function toIndianNum(n) {
         n = Math.round(n);
@@ -1587,6 +1587,12 @@ document.addEventListener('DOMContentLoaded', async function () {
         while (rest.length > 2) { res = rest.slice(-2) + ',' + res; rest = rest.slice(0, rest.length - 2); }
         if (rest.length) res = rest + ',' + res;
         return res;
+    }
+
+    // Format a rupee value as crores with 2 decimal places (e.g. 7058042 => "0.71Cr")
+    function toCr(n) {
+        const cr = n / 1e7;
+        return cr.toFixed(2) + 'Cr';
     }
 
     function cohortHeatColor(pct, maxPct, view) {
@@ -1619,8 +1625,8 @@ document.addEventListener('DOMContentLoaded', async function () {
         if (!cell) return null;
         if (view === 'retention')    return { display: cell.retention_pct.toFixed(1) + '%', raw: cell.retention_pct };
         if (view === 'repeat_count') return { display: toIndianNum(cell.active), raw: cell.active };
-        if (view === 'revenue')      return { display: '₹' + toIndianNum(cell.revenue), raw: cell.revenue };
-        if (view === 'avg_purchase') return { display: '₹' + toIndianNum(cell.avg_purchase), raw: cell.avg_purchase };
+        if (view === 'revenue')      return { display: '₹' + toCr(cell.revenue), raw: cell.revenue };
+        if (view === 'avg_purchase') return { display: '₹' + toCr(cell.avg_purchase), raw: cell.avg_purchase };
         if (view === 'bonus')        return { display: toIndianNum(cell.bonus_redeemed), raw: cell.bonus_redeemed };
         return null;
     }
@@ -1669,7 +1675,7 @@ document.addEventListener('DOMContentLoaded', async function () {
                 const v = getCellValue(cell, view);
                 if (!v) { html += '<td class="cohort-cell-empty">—</td>'; return; }
                 const { bg, text } = cohortHeatColor(v.raw, colMaxRaw[idx], view);
-                const tooltip = `Active: ${toIndianNum(cell.active)}\\nRetention: ${cell.retention_pct.toFixed(1)}%\\nRevenue: ₹${toIndianNum(cell.revenue)}\\nAvg Purchase: ₹${toIndianNum(cell.avg_purchase)}\\nBonus: ${toIndianNum(cell.bonus_redeemed)}`;
+                const tooltip = `Active: ${toIndianNum(cell.active)}\\nRetention: ${cell.retention_pct.toFixed(1)}%\\nRevenue: ₹${toCr(cell.revenue)}\\nAvg Purchase: ₹${toCr(cell.avg_purchase)}\\nBonus: ${toIndianNum(cell.bonus_redeemed)}`;
                 html += `<td class="cohort-cell-data" style="background:${bg};color:${text};" data-tooltip="${tooltip}">${v.display}</td>`;
             });
             html += '</tr>';
