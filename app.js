@@ -1595,6 +1595,13 @@ document.addEventListener('DOMContentLoaded', async function () {
         return cr.toFixed(2) + 'Cr';
     }
 
+    // Format a rupee value as thousands with 1 decimal place (e.g. 30831 => "30.8K")
+    function toK(n) {
+        if (n >= 1e6)  return (n / 1e6).toFixed(2) + 'M';
+        if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+        return Math.round(n).toString();
+    }
+
     function cohortHeatColor(pct, maxPct, view) {
         // Returns rgba string based on how high value is relative to max in column
         const ratio = maxPct > 0 ? Math.min(pct / maxPct, 1) : 0;
@@ -1626,7 +1633,7 @@ document.addEventListener('DOMContentLoaded', async function () {
         if (view === 'retention')    return { display: cell.retention_pct.toFixed(1) + '%', raw: cell.retention_pct };
         if (view === 'repeat_count') return { display: toIndianNum(cell.active), raw: cell.active };
         if (view === 'revenue')      return { display: '₹' + toCr(cell.revenue), raw: cell.revenue };
-        if (view === 'avg_purchase') return { display: '₹' + toCr(cell.avg_purchase), raw: cell.avg_purchase };
+        if (view === 'avg_purchase') return { display: '₹' + toK(cell.avg_purchase), raw: cell.avg_purchase };
         if (view === 'bonus')        return { display: toIndianNum(cell.bonus_redeemed), raw: cell.bonus_redeemed };
         return null;
     }
