@@ -98,17 +98,15 @@ def dashboard_metrics():
         master_total_customer_count = 0
         master_total_bonus_point_given = 0.0
 
+    # Only sales / redemptions made ON or AFTER the customer's refer_point_data
+    # date are counted (see _re_sales_ctes).
     range_query = f"""
-        WITH valid_sales AS (
-            SELECT 
-                if(endsWith(customer_mobile, '.0'), substr(customer_mobile, 1, length(customer_mobile) - 2), customer_mobile) as mob,
-                total_value,
-                abs(toFloat64OrZero(point_redemption)) as redemption
-            FROM sales_data
+        WITH
+        {_re_sales_ctes()},
+        valid_sales AS (
+            SELECT mob, total_value, redemption
+            FROM re_sales
             WHERE {date_filter}
-            AND if(endsWith(customer_mobile, '.0'), substr(customer_mobile, 1, length(customer_mobile) - 2), customer_mobile) IN (
-                SELECT if(endsWith(customer_mobile_number, '.0'), substr(customer_mobile_number, 1, length(customer_mobile_number) - 2), customer_mobile_number) FROM refer_point_data
-            )
         ),
         redeemers AS (
             SELECT DISTINCT mob FROM valid_sales WHERE redemption > 0
@@ -541,6 +539,51 @@ def _normalize_mob_expr(col):
         f")"
     )
 
+
+def _re_sales_ctes():
+    """
+    Returns two comma-separated CTE definitions (without the leading WITH):
+
+      re_join  : one row per R&E participant -> join_date = earliest
+                 refer_point_data.start_date (the app download / join date).
+      re_sales : sales_data rows of R&E participants made ON or AFTER their
+                 join_date. Columns: mob, parsed_date, total_value, redemption.
+
+    Rule: a sale / redemption only counts if it happened on or after the
+    customer's refer_point_data date. e.g. downloaded in Aug 2026 but bought
+    and redeemed in Feb 2026 -> the Feb transaction is NOT counted.
+    """
+    mob_re = _normalize_mob_expr('customer_mobile_number')
+    mob_s  = _normalize_mob_expr('customer_mobile')
+    return f"""
+            re_join AS (
+                SELECT {mob_re} AS mob,
+                       min(toDateOrNull(substr(start_date, 1, 10))) AS join_date
+                FROM refer_point_data
+                WHERE customer_mobile_number != ''
+                  AND length({mob_re}) = 10
+                GROUP BY mob
+                HAVING join_date IS NOT NULL
+            ),
+            re_sales AS (
+                SELECT s.mob         AS mob,
+                       s.parsed_date AS parsed_date,
+                       s.total_value AS total_value,
+                       s.redemption  AS redemption
+                FROM (
+                    SELECT {mob_s} AS mob,
+                           parsed_date,
+                           total_value,
+                           abs(toFloat64OrZero(point_redemption)) AS redemption
+                    FROM sales_data
+                    WHERE customer_mobile != ''
+                      AND length({mob_s}) = 10
+                ) s
+                INNER JOIN re_join r ON s.mob = r.mob
+                WHERE s.parsed_date >= r.join_date
+            )
+    """
+
 @app.route('/api/customer-classification')
 def customer_classification():
     """
@@ -585,15 +628,7 @@ def customer_classification():
 
         query = f"""
             WITH
-            -- All R&E participant mobiles (normalized)
-            re_participants AS (
-                SELECT DISTINCT
-                    {_normalize_mob_expr('customer_mobile_number')} AS mob
-                FROM refer_point_data
-                WHERE customer_mobile_number != ''
-                  AND customer_mobile_number IS NOT NULL
-                  AND length({_normalize_mob_expr('customer_mobile_number')}) = 10
-            ),
+            {_re_sales_ctes()},
 
             -- First-ever purchase date per customer across ALL of sales_data
             first_purchase AS (
@@ -606,16 +641,13 @@ def customer_classification():
                 GROUP BY mob
             ),
 
-            -- R&E participants who purchased within the selected date range
+            -- R&E participants who purchased within the selected date range,
+            -- counting only purchases on/after their refer_point_data date
             in_range_buyers AS (
-                SELECT DISTINCT
-                    {_normalize_mob_expr('customer_mobile')} AS mob
-                FROM sales_data
+                SELECT DISTINCT mob
+                FROM re_sales
                 WHERE parsed_date >= '{sd}'
                   AND parsed_date <= '{ed}'
-                  AND customer_mobile != ''
-                  AND length({_normalize_mob_expr('customer_mobile')}) = 10
-                  AND {_normalize_mob_expr('customer_mobile')} IN (SELECT mob FROM re_participants)
             )
 
             -- Classify each in-range buyer:
@@ -693,12 +725,7 @@ def new_customer_metrics():
         # Shared CTEs ─ identical to customer-classification logic
         shared = f"""
             WITH
-            re_participants AS (
-                SELECT DISTINCT {mob_re} AS mob
-                FROM refer_point_data
-                WHERE customer_mobile_number != ''
-                  AND length({mob_re}) = 10
-            ),
+            {_re_sales_ctes()},
             first_purchase AS (
                 SELECT {mob_s} AS mob, min(parsed_date) AS first_date
                 FROM sales_data
@@ -706,13 +733,11 @@ def new_customer_metrics():
                   AND length({mob_s}) = 10
                 GROUP BY mob
             ),
+            -- Only purchases on/after the customer's refer_point_data date
             in_range_buyers AS (
-                SELECT DISTINCT {mob_s} AS mob
-                FROM sales_data
+                SELECT DISTINCT mob
+                FROM re_sales
                 WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
-                  AND customer_mobile != ''
-                  AND length({mob_s}) = 10
-                  AND {mob_s} IN (SELECT mob FROM re_participants)
             ),
             -- New = first-ever purchase date >= sd (same as classification)
             new_customers AS (
@@ -727,11 +752,10 @@ def new_customer_metrics():
         metrics_q = shared + f"""
             ,
             valid_sales AS (
-                SELECT {mob_s} AS mob, total_value,
-                       abs(toFloat64OrZero(point_redemption)) AS redemption
-                FROM sales_data
+                SELECT mob, total_value, redemption
+                FROM re_sales
                 WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
-                  AND {mob_s} IN (SELECT mob FROM new_customers)
+                  AND mob IN (SELECT mob FROM new_customers)
             ),
             redeemers AS (SELECT DISTINCT mob FROM valid_sales WHERE redemption > 0)
             SELECT
@@ -768,10 +792,10 @@ def new_customer_metrics():
         trend_q = shared + f"""
             ,
             daily AS (
-                SELECT {mob_s} AS mob, parsed_date
-                FROM sales_data
+                SELECT mob, parsed_date
+                FROM re_sales
                 WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
-                  AND {mob_s} IN (SELECT mob FROM new_customers)
+                  AND mob IN (SELECT mob FROM new_customers)
             )
             SELECT parsed_date, count(DISTINCT mob) AS cnt
             FROM daily
@@ -835,12 +859,7 @@ def repeat_customer_metrics():
         # Shared CTEs ─ identical to customer-classification logic
         shared = f"""
             WITH
-            re_participants AS (
-                SELECT DISTINCT {mob_re} AS mob
-                FROM refer_point_data
-                WHERE customer_mobile_number != ''
-                  AND length({mob_re}) = 10
-            ),
+            {_re_sales_ctes()},
             first_purchase AS (
                 SELECT {mob_s} AS mob, min(parsed_date) AS first_date
                 FROM sales_data
@@ -848,13 +867,11 @@ def repeat_customer_metrics():
                   AND length({mob_s}) = 10
                 GROUP BY mob
             ),
+            -- Only purchases on/after the customer's refer_point_data date
             in_range_buyers AS (
-                SELECT DISTINCT {mob_s} AS mob
-                FROM sales_data
+                SELECT DISTINCT mob
+                FROM re_sales
                 WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
-                  AND customer_mobile != ''
-                  AND length({mob_s}) = 10
-                  AND {mob_s} IN (SELECT mob FROM re_participants)
             ),
             -- Repeat = first-ever purchase date < sd (same as classification)
             repeat_customers AS (
@@ -869,11 +886,10 @@ def repeat_customer_metrics():
         metrics_q = shared + f"""
             ,
             valid_sales AS (
-                SELECT {mob_s} AS mob, total_value,
-                       abs(toFloat64OrZero(point_redemption)) AS redemption
-                FROM sales_data
+                SELECT mob, total_value, redemption
+                FROM re_sales
                 WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
-                  AND {mob_s} IN (SELECT mob FROM repeat_customers)
+                  AND mob IN (SELECT mob FROM repeat_customers)
             ),
             redeemers AS (SELECT DISTINCT mob FROM valid_sales WHERE redemption > 0)
             SELECT
@@ -910,10 +926,10 @@ def repeat_customer_metrics():
         trend_q = shared + f"""
             ,
             daily AS (
-                SELECT {mob_s} AS mob, parsed_date
-                FROM sales_data
+                SELECT mob, parsed_date
+                FROM re_sales
                 WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
-                  AND {mob_s} IN (SELECT mob FROM repeat_customers)
+                  AND mob IN (SELECT mob FROM repeat_customers)
             )
             SELECT parsed_date, count(DISTINCT mob) AS cnt
             FROM daily
@@ -975,21 +991,14 @@ def cohort_analysis():
         # ── Step 1: cohort sizes ─────────────────────────────────────────
         size_q = f"""
             WITH
-            re_participants AS (
-                SELECT DISTINCT {mob_re} AS mob
-                FROM refer_point_data
-                WHERE customer_mobile_number != ''
-                  AND length({mob_re}) = 10
-            ),
+            {_re_sales_ctes()},
+            -- Cohort = month of first purchase ON/AFTER the refer_point_data date
             first_purchase AS (
                 SELECT
-                    {mob_s} AS mob,
+                    mob,
                     toStartOfMonth(min(parsed_date)) AS cohort_month
-                FROM sales_data
-                WHERE customer_mobile != ''
-                  AND length({mob_s}) = 10
-                  AND parsed_date >= '2026-01-16'
-                  AND {mob_s} IN (SELECT mob FROM re_participants)
+                FROM re_sales
+                WHERE parsed_date >= '2026-01-16'
                 GROUP BY mob
             )
             SELECT
@@ -1014,36 +1023,25 @@ def cohort_analysis():
         # ── Step 2: per-cohort per-month-offset metrics ──────────────────
         metrics_q = f"""
             WITH
-            re_participants AS (
-                SELECT DISTINCT {mob_re} AS mob
-                FROM refer_point_data
-                WHERE customer_mobile_number != ''
-                  AND length({mob_re}) = 10
-            ),
+            {_re_sales_ctes()},
             first_purchase AS (
                 SELECT
-                    {mob_s} AS mob,
+                    mob,
                     toStartOfMonth(min(parsed_date)) AS cohort_month
-                FROM sales_data
-                WHERE customer_mobile != ''
-                  AND length({mob_s}) = 10
-                  AND parsed_date >= '2026-01-16'
-                  AND {mob_s} IN (SELECT mob FROM re_participants)
+                FROM re_sales
+                WHERE parsed_date >= '2026-01-16'
                 GROUP BY mob
             ),
             -- Daily dedup: one row per (mob, day) to avoid double-counting
             -- same customer purchasing multiple times in one day
             daily_purchases AS (
                 SELECT
-                    {mob_s} AS mob,
+                    mob,
                     parsed_date,
-                    sum(total_value)                         AS day_revenue,
-                    sum(abs(toFloat64OrZero(point_redemption))) AS day_redemption
-                FROM sales_data
-                WHERE customer_mobile != ''
-                  AND length({mob_s}) = 10
-                  AND parsed_date >= '2026-01-16'
-                  AND {mob_s} IN (SELECT mob FROM re_participants)
+                    sum(total_value) AS day_revenue,
+                    sum(redemption)  AS day_redemption
+                FROM re_sales
+                WHERE parsed_date >= '2026-01-16'
                 GROUP BY mob, parsed_date
             ),
             monthly_activity AS (
