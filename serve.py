@@ -100,13 +100,20 @@ def dashboard_metrics():
 
     # Only sales / redemptions made ON or AFTER the customer's refer_point_data
     # date are counted (see _re_sales_ctes).
+    # When a date filter is applied, we restrict purchases to the exact cohort 
+    # of customers whose start_date in refer_point_data falls in the selected date range.
+    cohort_filter = ""
+    if not is_full_range:
+        mob_re = _normalize_mob_expr('customer_mobile_number')
+        cohort_filter = f"AND mob IN (SELECT {mob_re} FROM refer_point_data WHERE start_date >= '{sd}' AND start_date <= '{ed}')"
+
     range_query = f"""
         WITH
         {_re_sales_ctes()},
         valid_sales AS (
             SELECT mob, total_value, redemption
             FROM re_sales
-            WHERE {date_filter}
+            WHERE {date_filter} {cohort_filter}
         ),
         redeemers AS (
             SELECT DISTINCT mob FROM valid_sales WHERE redemption > 0
