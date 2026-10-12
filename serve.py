@@ -99,39 +99,24 @@ def dashboard_metrics():
         master_total_bonus_point_given = 0.0
 
     # Only sales / redemptions made ON or AFTER the customer's refer_point_data
-    # date are counted (see _re_sales_ctes).
+    # date are counted (see _re_sales_ctes), and only those inside the
+    # referral-point validity window (see _re_window_ctes). Point Redeemed
+    # Value is capped at the referral points actually available (FIFO).
     # When a date filter is applied, we restrict purchases to the exact cohort 
     # of customers whose start_date in refer_point_data falls in the selected date range.
     cohort_filter = ""
     if not is_full_range:
         mob_re = _normalize_mob_expr('customer_mobile_number')
         cohort_filter = f"AND mob IN (SELECT {mob_re} FROM refer_point_data WHERE start_date >= '{sd}' AND start_date <= '{ed}')"
+    else:
+        sd, ed = '2026-01-16', '2100-12-31'   # programme start → open end
 
-    range_query = f"""
-        WITH
-        {_re_sales_ctes()},
-        valid_sales AS (
-            SELECT mob, total_value, redemption
-            FROM re_sales
-            WHERE {date_filter} {cohort_filter}
-        ),
-        redeemers AS (
-            SELECT DISTINCT mob FROM valid_sales WHERE redemption > 0
-        )
-        SELECT 
-            count(distinct mob) as purchase_count,
-            (SELECT count() FROM redeemers) as redeemed_count,
-            sum(redemption) as point_redeemed_value,
-            (SELECT sum(total_value) FROM valid_sales WHERE mob IN (SELECT mob FROM redeemers)) as redeemed_purchase_value
-        FROM valid_sales
-    """
-    
     try:
-        range_res = client.query(range_query).result_rows[0]
-        range_purchase_count = int(range_res[0]) if range_res[0] else 0
-        range_redeemed_count = int(range_res[1]) if range_res[1] else 0
-        range_point_redeemed = float(range_res[2]) if range_res[2] else 0.0
-        range_redeemed_purch_v = float(range_res[3]) if range_res[3] else 0.0
+        m = _windowed_re_metrics(client, sd, ed, scope_filter=cohort_filter)
+        range_purchase_count   = m['purchase_count']
+        range_redeemed_count   = m['redeemed_count']
+        range_point_redeemed   = m['point_redeemed_value']
+        range_redeemed_purch_v = m['redeemed_purchase_value']
     except Exception as e:
         print("Clickhouse range query error:", e)
         range_purchase_count = 0
@@ -591,6 +576,169 @@ def _re_sales_ctes():
             )
     """
 
+
+# Referral points expire this many days after the date they were credited.
+# A credit on day D is usable on D, D+1, ... D+(REFERRAL_POINT_VALIDITY_DAYS-1).
+REFERRAL_POINT_VALIDITY_DAYS = 30
+
+
+def _re_window_ctes():
+    """
+    Returns comma-separated CTE definitions (without leading WITH / comma).
+    Must be used AFTER _re_sales_ctes() in the same WITH block.
+
+      re_credits      : one row per (mob, credit_date) with the referral points
+                        credited that day (a customer can be credited many times).
+      re_windows      : one row per mob with arrays of credit dates / points.
+      re_window_sales : re_sales rows that fall inside the validity window of
+                        at least one referral credit of that customer, i.e.
+                        credit_date <= parsed_date < credit_date + VALIDITY_DAYS.
+    """
+    mob_re = _normalize_mob_expr('customer_mobile_number')
+    days = int(REFERRAL_POINT_VALIDITY_DAYS)
+    return f"""
+            re_credits AS (
+                SELECT {mob_re} AS mob,
+                       assumeNotNull(toDateOrNull(substr(start_date, 1, 10))) AS credit_date,
+                       sum(bonus_points) AS points
+                FROM refer_point_data
+                WHERE customer_mobile_number != ''
+                  AND length({mob_re}) = 10
+                  AND toDateOrNull(substr(start_date, 1, 10)) IS NOT NULL
+                GROUP BY mob, credit_date
+            ),
+            re_windows AS (
+                SELECT mob,
+                       groupArray(credit_date) AS credit_dates,
+                       groupArray(points)      AS credit_points
+                FROM re_credits
+                GROUP BY mob
+            ),
+            re_window_sales AS (
+                SELECT s.mob AS mob, s.parsed_date AS parsed_date,
+                       s.total_value AS total_value, s.redemption AS redemption
+                FROM re_sales s
+                INNER JOIN re_windows w ON s.mob = w.mob
+                WHERE arrayExists(
+                    d -> s.parsed_date >= d AND s.parsed_date < d + {days},
+                    w.credit_dates
+                )
+            )
+    """
+
+
+def _attribute_referral_redemptions(credits, txns):
+    """
+    FIFO attribution of redemptions to referral point lots for ONE customer.
+
+      credits : list of (credit_date, points)
+      txns    : list of (txn_date, redemption) - in-window redemptions
+
+    Each credit is a lot valid on [credit_date, credit_date + VALIDITY_DAYS).
+    A redemption consumes points from lots that are active on its date,
+    earliest-expiring first. Anything beyond the available referral points
+    (already used up / expired / never received) is NOT attributed.
+
+    Returns a list of (txn_date, attributed_points) in chronological order.
+    """
+    from datetime import timedelta
+    validity = timedelta(days=REFERRAL_POINT_VALIDITY_DAYS)
+    lots = sorted(
+        [[d, d + validity, float(p or 0)] for d, p in credits],
+        key=lambda l: (l[1], l[0])
+    )
+    out = []
+    for txn_date, redemption in sorted(txns, key=lambda t: t[0]):
+        need = float(redemption or 0)
+        used = 0.0
+        for lot in lots:
+            if need <= 0:
+                break
+            start, expiry, remaining = lot
+            if remaining <= 0 or not (start <= txn_date < expiry):
+                continue
+            take = min(remaining, need)
+            lot[2] -= take
+            need -= take
+            used += take
+        out.append((txn_date, used))
+    return out
+
+
+def _windowed_re_metrics(client, sd, ed, scope_ctes='', scope_filter=''):
+    """
+    Computes the four headline Refer & Earn metrics honouring the referral
+    point validity window (REFERRAL_POINT_VALIDITY_DAYS) and the referral
+    point cap:
+
+      purchase_count          : distinct customers with >= 1 in-window purchase
+                                in [sd, ed]
+      redeemed_count          : distinct customers whose in-window redemptions
+                                in [sd, ed] consumed > 0 referral points
+      point_redeemed_value    : referral points consumed in [sd, ed] (capped at
+                                the referral points actually available)
+      redeemed_purchase_value : in-window purchase value in [sd, ed] of the
+                                redeemed customers
+
+    scope_ctes   : extra CTE definitions (no leading comma) that scope_filter
+                   may reference, e.g. new_customers / repeat_customers.
+    scope_filter : extra SQL condition on `mob`, starting with AND.
+    """
+    from datetime import date as _date
+    sd_d = _date.fromisoformat(sd)
+    ed_d = _date.fromisoformat(ed)
+    extra = f",\n{scope_ctes}" if scope_ctes.strip() else ""
+    with_block = f"""
+        WITH
+        {_re_sales_ctes()},
+        {_re_window_ctes()}{extra}
+    """
+
+    # 1) In-range, in-window purchases -> purchase value per customer
+    purchase_q = with_block + f"""
+        SELECT mob, sum(total_value) AS value
+        FROM re_window_sales
+        WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}' {scope_filter}
+        GROUP BY mob
+    """
+    value_by_mob = {r[0]: float(r[1] or 0) for r in client.query(purchase_q).result_rows}
+
+    # 2) For customers with an in-range, in-window redemption: every in-window
+    #    redemption up to `ed` (earlier ones may already have used up points)
+    #    plus all their referral credits, for FIFO attribution in Python.
+    redeem_q = with_block + f"""
+        , redeem_txns AS (
+            SELECT mob,
+                   groupArray(parsed_date) AS txn_dates,
+                   groupArray(redemption)  AS txn_amounts
+            FROM re_window_sales
+            WHERE redemption > 0 AND parsed_date <= '{ed}' {scope_filter}
+            GROUP BY mob
+            HAVING countIf(parsed_date >= '{sd}') > 0
+        )
+        SELECT t.mob, t.txn_dates, t.txn_amounts, w.credit_dates, w.credit_points
+        FROM redeem_txns t
+        INNER JOIN re_windows w ON t.mob = w.mob
+    """
+    point_redeemed = 0.0
+    redeemers = set()
+    for mob, txn_dates, txn_amounts, credit_dates, credit_points in client.query(redeem_q).result_rows:
+        attributed = _attribute_referral_redemptions(
+            list(zip(credit_dates, credit_points)),
+            list(zip(txn_dates, txn_amounts)),
+        )
+        in_range = sum(pts for d, pts in attributed if sd_d <= d <= ed_d)
+        if in_range > 0:
+            point_redeemed += in_range
+            redeemers.add(mob)
+
+    return {
+        'purchase_count':          len(value_by_mob),
+        'redeemed_count':          len(redeemers),
+        'point_redeemed_value':    point_redeemed,
+        'redeemed_purchase_value': sum(value_by_mob.get(m, 0.0) for m in redeemers),
+    }
+
 @app.route('/api/customer-classification')
 def customer_classification():
     """
@@ -636,6 +784,7 @@ def customer_classification():
         query = f"""
             WITH
             {_re_sales_ctes()},
+            {_re_window_ctes()},
 
             -- First-ever purchase date per customer across ALL of sales_data
             first_purchase AS (
@@ -649,10 +798,10 @@ def customer_classification():
             ),
 
             -- R&E participants who purchased within the selected date range,
-            -- counting only purchases on/after their refer_point_data date
+            -- counting only purchases inside a referral-point validity window
             in_range_buyers AS (
                 SELECT DISTINCT mob
-                FROM re_sales
+                FROM re_window_sales
                 WHERE parsed_date >= '{sd}'
                   AND parsed_date <= '{ed}'
             )
@@ -729,10 +878,8 @@ def new_customer_metrics():
         mob_re = _normalize_mob_expr('customer_mobile_number')
         mob_s  = _normalize_mob_expr('customer_mobile')
 
-        # Shared CTEs ─ identical to customer-classification logic
-        shared = f"""
-            WITH
-            {_re_sales_ctes()},
+        # Segment CTEs ─ identical to customer-classification logic
+        scope_ctes = f"""
             first_purchase AS (
                 SELECT {mob_s} AS mob, min(parsed_date) AS first_date
                 FROM sales_data
@@ -740,10 +887,10 @@ def new_customer_metrics():
                   AND length({mob_s}) = 10
                 GROUP BY mob
             ),
-            -- Only purchases on/after the customer's refer_point_data date
+            -- Only purchases inside a referral-point validity window
             in_range_buyers AS (
                 SELECT DISTINCT mob
-                FROM re_sales
+                FROM re_window_sales
                 WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
             ),
             -- New = first-ever purchase date >= sd (same as classification)
@@ -754,39 +901,40 @@ def new_customer_metrics():
                 WHERE fp.first_date >= '{sd}'
             )
         """
+        # Shared CTEs (re_sales + validity windows + segment)
+        shared = f"""
+            WITH
+            {_re_sales_ctes()},
+            {_re_window_ctes()},
+            {scope_ctes}
+        """
 
-        # Combined metrics query
+        # Segment size + bonus points given
         metrics_q = shared + f"""
-            ,
-            valid_sales AS (
-                SELECT mob, total_value, redemption
-                FROM re_sales
-                WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
-                  AND mob IN (SELECT mob FROM new_customers)
-            ),
-            redeemers AS (SELECT DISTINCT mob FROM valid_sales WHERE redemption > 0)
             SELECT
                 (SELECT count() FROM new_customers)           AS nc_count,
                 (SELECT sum(rpd.bonus_points)
                  FROM (
                      SELECT {mob_re} AS mob, bonus_points
                      FROM refer_point_data WHERE customer_mobile_number != ''
+                       AND start_date >= '{sd}' AND start_date <= '{ed}'
                  ) rpd
-                 WHERE rpd.mob IN (SELECT mob FROM new_customers)) AS nc_bonus,
-                count(DISTINCT mob)                           AS purchase_count,
-                (SELECT count() FROM redeemers)               AS redeemed_count,
-                sum(redemption)                               AS point_redeemed,
-                (SELECT sum(total_value) FROM valid_sales
-                 WHERE mob IN (SELECT mob FROM redeemers))    AS redeemed_purch_v
-            FROM valid_sales
+                 WHERE rpd.mob IN (SELECT mob FROM new_customers)) AS nc_bonus
         """
         row = client.query(metrics_q).result_rows[0]
         nc_count         = int(row[0])   if row[0] else 0
         nc_bonus         = float(row[1]) if row[1] else 0.0
-        purchase_count   = int(row[2])   if row[2] else 0
-        redeemed_count   = int(row[3])   if row[3] else 0
-        point_redeemed   = float(row[4]) if row[4] else 0.0
-        redeemed_purch_v = float(row[5]) if row[5] else 0.0
+
+        # Purchase / redemption metrics: referral-point validity window + cap
+        m = _windowed_re_metrics(
+            client, sd, ed,
+            scope_ctes=scope_ctes,
+            scope_filter="AND mob IN (SELECT mob FROM new_customers)",
+        )
+        purchase_count   = m['purchase_count']
+        redeemed_count   = m['redeemed_count']
+        point_redeemed   = m['point_redeemed_value']
+        redeemed_purch_v = m['redeemed_purchase_value']
 
         if redeemed_purch_v > 0:
             discount_pct = (point_redeemed / redeemed_purch_v) * 100
@@ -800,7 +948,7 @@ def new_customer_metrics():
             ,
             daily AS (
                 SELECT mob, parsed_date
-                FROM re_sales
+                FROM re_window_sales
                 WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
                   AND mob IN (SELECT mob FROM new_customers)
             )
@@ -863,10 +1011,8 @@ def repeat_customer_metrics():
         mob_re = _normalize_mob_expr('customer_mobile_number')
         mob_s  = _normalize_mob_expr('customer_mobile')
 
-        # Shared CTEs ─ identical to customer-classification logic
-        shared = f"""
-            WITH
-            {_re_sales_ctes()},
+        # Segment CTEs ─ identical to customer-classification logic
+        scope_ctes = f"""
             first_purchase AS (
                 SELECT {mob_s} AS mob, min(parsed_date) AS first_date
                 FROM sales_data
@@ -874,10 +1020,10 @@ def repeat_customer_metrics():
                   AND length({mob_s}) = 10
                 GROUP BY mob
             ),
-            -- Only purchases on/after the customer's refer_point_data date
+            -- Only purchases inside a referral-point validity window
             in_range_buyers AS (
                 SELECT DISTINCT mob
-                FROM re_sales
+                FROM re_window_sales
                 WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
             ),
             -- Repeat = first-ever purchase date < sd (same as classification)
@@ -888,39 +1034,40 @@ def repeat_customer_metrics():
                 WHERE fp.first_date < '{sd}'
             )
         """
+        # Shared CTEs (re_sales + validity windows + segment)
+        shared = f"""
+            WITH
+            {_re_sales_ctes()},
+            {_re_window_ctes()},
+            {scope_ctes}
+        """
 
-        # Combined metrics query
+        # Segment size + bonus points given
         metrics_q = shared + f"""
-            ,
-            valid_sales AS (
-                SELECT mob, total_value, redemption
-                FROM re_sales
-                WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
-                  AND mob IN (SELECT mob FROM repeat_customers)
-            ),
-            redeemers AS (SELECT DISTINCT mob FROM valid_sales WHERE redemption > 0)
             SELECT
                 (SELECT count() FROM repeat_customers)        AS rc_count,
                 (SELECT sum(rpd.bonus_points)
                  FROM (
                      SELECT {mob_re} AS mob, bonus_points
                      FROM refer_point_data WHERE customer_mobile_number != ''
+                       AND start_date >= '{sd}' AND start_date <= '{ed}'
                  ) rpd
-                 WHERE rpd.mob IN (SELECT mob FROM repeat_customers)) AS rc_bonus,
-                count(DISTINCT mob)                           AS purchase_count,
-                (SELECT count() FROM redeemers)               AS redeemed_count,
-                sum(redemption)                               AS point_redeemed,
-                (SELECT sum(total_value) FROM valid_sales
-                 WHERE mob IN (SELECT mob FROM redeemers))    AS redeemed_purch_v
-            FROM valid_sales
+                 WHERE rpd.mob IN (SELECT mob FROM repeat_customers)) AS rc_bonus
         """
         row = client.query(metrics_q).result_rows[0]
         rc_count         = int(row[0])   if row[0] else 0
         rc_bonus         = float(row[1]) if row[1] else 0.0
-        purchase_count   = int(row[2])   if row[2] else 0
-        redeemed_count   = int(row[3])   if row[3] else 0
-        point_redeemed   = float(row[4]) if row[4] else 0.0
-        redeemed_purch_v = float(row[5]) if row[5] else 0.0
+
+        # Purchase / redemption metrics: referral-point validity window + cap
+        m = _windowed_re_metrics(
+            client, sd, ed,
+            scope_ctes=scope_ctes,
+            scope_filter="AND mob IN (SELECT mob FROM repeat_customers)",
+        )
+        purchase_count   = m['purchase_count']
+        redeemed_count   = m['redeemed_count']
+        point_redeemed   = m['point_redeemed_value']
+        redeemed_purch_v = m['redeemed_purchase_value']
 
         if redeemed_purch_v > 0:
             discount_pct = (point_redeemed / redeemed_purch_v) * 100
@@ -934,7 +1081,7 @@ def repeat_customer_metrics():
             ,
             daily AS (
                 SELECT mob, parsed_date
-                FROM re_sales
+                FROM re_window_sales
                 WHERE parsed_date >= '{sd}' AND parsed_date <= '{ed}'
                   AND mob IN (SELECT mob FROM repeat_customers)
             )
