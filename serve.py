@@ -1131,9 +1131,17 @@ def cohort_analysis():
     Only R&E participants (those in refer_point_data) are included.
     Same mobile on same day → counted once per (cohort_month, month_offset) cell.
 
+    Query params:
+      segment : 'all' (default) | 'new' | 'repeat'
+        repeat → customer purchased BEFORE 2026-01-16 (any sales_data row)
+                 AND purchased on/after 2026-01-16 (i.e. is in a cohort)
+        new    → customer's first-ever purchase is on/after 2026-01-16
+                 (no sales_data row before 2026-01-16)
+
     Response:
       cohorts  : list of cohort rows, each with cohort_label, cohort_size, and cells list
       max_offset: highest month offset present in the data
+      segment  : the segment that was applied
     """
     from datetime import datetime
 
@@ -1142,19 +1150,48 @@ def cohort_analysis():
         mob_re   = _normalize_mob_expr('customer_mobile_number')
         mob_s    = _normalize_mob_expr('customer_mobile')
 
-        # ── Step 1: cohort sizes ─────────────────────────────────────────
-        size_q = f"""
-            WITH
-            {_re_sales_ctes()},
-            -- Cohort = month of first purchase ON/AFTER the refer_point_data date
+        segment = (request.args.get('segment') or 'all').strip().lower()
+        if segment not in ('all', 'new', 'repeat'):
+            segment = 'all'
+
+        # Customers with ANY purchase before the programme start. Uses raw
+        # sales_data (not re_sales) because re_sales already drops rows that
+        # are before the customer's R&E join date.
+        pre_buyers_cte = f"""
+            pre_buyers AS (
+                SELECT DISTINCT {mob_s} AS mob
+                FROM sales_data
+                WHERE customer_mobile != ''
+                  AND parsed_date < '2026-01-16'
+                  AND length({mob_s}) = 10
+            ),"""
+        if segment == 'repeat':
+            segment_filter = "AND mob IN (SELECT mob FROM pre_buyers)"
+        elif segment == 'new':
+            segment_filter = "AND mob NOT IN (SELECT mob FROM pre_buyers)"
+        else:
+            pre_buyers_cte = ""
+            segment_filter = ""
+
+        # Cohort = month of first purchase ON/AFTER the refer_point_data date
+        # (and on/after programme start), optionally restricted to a segment.
+        first_purchase_cte = f"""
+            {pre_buyers_cte}
             first_purchase AS (
                 SELECT
                     mob,
                     toStartOfMonth(min(parsed_date)) AS cohort_month
                 FROM re_sales
                 WHERE parsed_date >= '2026-01-16'
+                  {segment_filter}
                 GROUP BY mob
-            )
+            )"""
+
+        # ── Step 1: cohort sizes ─────────────────────────────────────────
+        size_q = f"""
+            WITH
+            {_re_sales_ctes()},
+            {first_purchase_cte}
             SELECT
                 cohort_month,
                 count() AS cohort_size
@@ -1172,20 +1209,13 @@ def cohort_analysis():
             cohort_months_ordered.append(cm)
 
         if not cohort_months_ordered:
-            return jsonify({'cohorts': [], 'max_offset': 0})
+            return jsonify({'cohorts': [], 'max_offset': 0, 'segment': segment})
 
         # ── Step 2: per-cohort per-month-offset metrics ──────────────────
         metrics_q = f"""
             WITH
             {_re_sales_ctes()},
-            first_purchase AS (
-                SELECT
-                    mob,
-                    toStartOfMonth(min(parsed_date)) AS cohort_month
-                FROM re_sales
-                WHERE parsed_date >= '2026-01-16'
-                GROUP BY mob
-            ),
+            {first_purchase_cte},
             -- Daily dedup: one row per (mob, day) to avoid double-counting
             -- same customer purchasing multiple times in one day
             daily_purchases AS (
@@ -1279,7 +1309,7 @@ def cohort_analysis():
                 'cells':        cells,
             })
 
-        return jsonify({'cohorts': cohorts, 'max_offset': max_offset})
+        return jsonify({'cohorts': cohorts, 'max_offset': max_offset, 'segment': segment})
 
     except Exception as e:
         import traceback

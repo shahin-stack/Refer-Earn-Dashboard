@@ -574,7 +574,7 @@
                     </div>
                 </div>
 
-                <!-- View-mode toggle + legend -->
+                <!-- View-mode toggle + customer segment toggle -->
                 <div class="cohort-controls">
                     <div class="cohort-view-toggle">
                         <button class="cohort-view-btn active" data-view="repeat_count">Repeat Count</button>
@@ -583,10 +583,18 @@
                         <button class="cohort-view-btn" data-view="avg_purchase">Avg Purchase</button>
                         <button class="cohort-view-btn" data-view="bonus">Bonus Redeemed</button>
                     </div>
-                    <div class="cohort-legend">
-                        <span class="cohort-legend-label">Low</span>
-                        <div class="cohort-legend-bar"></div>
-                        <span class="cohort-legend-label">High</span>
+                    <div class="cohort-segment-toggle" id="cohortSegmentToggle" role="tablist"
+                         aria-label="Customer segment" data-segment="all" style="--seg-idx:0;">
+                        <span class="cohort-segment-thumb" aria-hidden="true"></span>
+                        <button class="cohort-segment-btn active" id="cohortSegAll" role="tab" aria-selected="true"
+                                data-segment="all" data-idx="0"
+                                title="All R&amp;E customers">All</button>
+                        <button class="cohort-segment-btn" id="cohortSegNew" role="tab" aria-selected="false"
+                                data-segment="new" data-idx="1"
+                                title="New: first purchase on/after 16 Jan 2026, no purchase before"><span class="seg-dot seg-dot-new"></span>New</button>
+                        <button class="cohort-segment-btn" id="cohortSegRepeat" role="tab" aria-selected="false"
+                                data-segment="repeat" data-idx="2"
+                                title="Repeat: purchased both before and after 16 Jan 2026"><span class="seg-dot seg-dot-repeat"></span>Repeat</button>
                     </div>
                 </div>
 
@@ -594,6 +602,16 @@
                 <div class="glass cohort-table-wrapper">
                     <div id="cohortTableContainer" style="overflow-x:auto;">
                         <div class="loading-cell" style="padding:3rem;text-align:center;">⏳ Loading cohort data…</div>
+                    </div>
+                </div>
+
+                <!-- Footer: segment definition + heatmap legend -->
+                <div class="cohort-footer">
+                    <span class="cohort-segment-note" id="cohortSegmentNote">Showing all Refer &amp; Earn customers</span>
+                    <div class="cohort-legend">
+                        <span class="cohort-legend-label">Low</span>
+                        <div class="cohort-legend-bar"></div>
+                        <span class="cohort-legend-label">High</span>
                     </div>
                 </div>
 

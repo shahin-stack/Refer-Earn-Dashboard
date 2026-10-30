@@ -739,6 +739,87 @@ body {
 }
 .cohort-legend-label { font-weight: 600; white-space: nowrap; }
 
+/* ── Customer segment toggle (All / New / Repeat) ────────────────────────── */
+.cohort-segment-toggle {
+    --seg-color: var(--accent-blue);
+    --seg-idx: 0;
+    position: relative;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    padding: 4px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 999px;
+    box-shadow: var(--shadow-sm);
+    min-width: 270px;
+    isolation: isolate;
+}
+.cohort-segment-toggle[data-segment="new"]    { --seg-color: var(--accent-emerald); }
+.cohort-segment-toggle[data-segment="repeat"] { --seg-color: var(--accent-purple); }
+
+.cohort-segment-thumb {
+    position: absolute;
+    top: 4px; bottom: 4px; left: 4px;
+    width: calc((100% - 8px) / 3);
+    border-radius: 999px;
+    background: var(--seg-color);
+    box-shadow: 0 4px 14px color-mix(in srgb, var(--seg-color) 35%, transparent);
+    transform: translateX(calc(var(--seg-idx) * 100%));
+    transition: transform 0.35s cubic-bezier(0.34, 1.4, 0.64, 1), background 0.3s ease, box-shadow 0.3s ease;
+    z-index: -1;
+}
+
+.cohort-segment-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.45rem 1rem;
+    border: none;
+    background: transparent;
+    border-radius: 999px;
+    font-family: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.25s ease;
+}
+.cohort-segment-btn:hover:not(.active) { color: var(--text-primary); }
+.cohort-segment-btn.active { color: #fff; }
+.cohort-segment-btn:focus-visible { outline: 2px solid var(--seg-color); outline-offset: 2px; }
+.cohort-segment-toggle.is-loading .cohort-segment-btn { cursor: progress; }
+
+.seg-dot {
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    transition: background 0.25s ease, box-shadow 0.25s ease;
+}
+.seg-dot-new    { background: var(--accent-emerald); }
+.seg-dot-repeat { background: var(--accent-purple); }
+.cohort-segment-btn.active .seg-dot { background: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,0.25); }
+
+/* ── Footer below matrix (segment note + legend) ─────────────────────────── */
+.cohort-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin-top: 0.9rem;
+}
+.cohort-segment-note {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+}
+.cohort-segment-note strong { color: var(--text-primary); }
+
+/* Fade table while a segment is loading */
+#cohortTableContainer { transition: opacity 0.25s ease; }
+#cohortTableContainer.is-loading { opacity: 0.45; pointer-events: none; }
+
 /* ── Matrix table wrapper ─────────────────────────────────────────────────── */
 .cohort-table-wrapper {
     border-radius: 16px;

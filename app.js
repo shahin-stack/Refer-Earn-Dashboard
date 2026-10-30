@@ -1575,8 +1575,16 @@ document.addEventListener('DOMContentLoaded', async function () {
     loadCustomerClassification();
 
     // ─── Cohort Analysis ──────────────────────────────────────────────────────
-    let _cohortData = null;   // cache API response
+    let _cohortData = null;   // currently displayed API response
     let _cohortView = 'repeat_count';  // current view mode
+    let _cohortSegment = 'all';        // 'all' | 'new' | 'repeat'
+    const _cohortCache = {};           // segment -> API response
+
+    const COHORT_SEGMENT_NOTES = {
+        all:    'Showing <strong>all</strong> Refer &amp; Earn customers',
+        new:    '<strong>New</strong> — first purchase on/after 16 Jan 2026, no purchase before',
+        repeat: '<strong>Repeat</strong> — purchased both before and after 16 Jan 2026',
+    };
 
     function toIndianNum(n) {
         n = Math.round(n);
@@ -1658,7 +1666,7 @@ document.addEventListener('DOMContentLoaded', async function () {
 
         // Build header
         let html = '<table class="cohort-matrix"><thead><tr>';
-        html += '<th>Cohort Month</th><th style="text-align:right">New Customers</th>';
+        html += '<th>Cohort Month</th><th style="text-align:right">Total Customers</th>';
         for (let i = 0; i <= max_offset; i++) {
             html += `<th>Month ${i}</th>`;
         }
@@ -1722,25 +1730,77 @@ document.addEventListener('DOMContentLoaded', async function () {
         document.getElementById('cohortBestCohort').textContent      = bestLabel;
     }
 
-    async function fetchCohortAnalysis() {
+    async function fetchCohortAnalysis(segment = _cohortSegment) {
         const container = document.getElementById('cohortTableContainer');
         if (!container) return;
-        container.innerHTML = '<div style="padding:3rem;text-align:center;color:var(--text-muted);">⏳ Loading cohort data… This may take a few seconds.</div>';
+        const toggle = document.getElementById('cohortSegmentToggle');
+
+        // Serve from cache if we've already loaded this segment
+        if (_cohortCache[segment]) {
+            container.classList.remove('is-loading');
+            if (toggle) toggle.classList.remove('is-loading');
+            _cohortData = _cohortCache[segment];
+            buildCohortTable(_cohortData, _cohortView);
+            updateCohortSummary(_cohortData);
+            return;
+        }
+
+        if (_cohortData) {
+            // Keep the current table visible but faded while the new segment loads
+            container.classList.add('is-loading');
+        } else {
+            container.innerHTML = '<div style="padding:3rem;text-align:center;color:var(--text-muted);">⏳ Loading cohort data… This may take a few seconds.</div>';
+        }
+        if (toggle) toggle.classList.add('is-loading');
 
         try {
-            const resp = await fetch('/api/cohort-analysis');
+            const resp = await fetch(`/api/cohort-analysis?segment=${encodeURIComponent(segment)}`);
             const data = await resp.json();
             if (data.error) throw new Error(data.error);
+
+            _cohortCache[segment] = data;
+            // Ignore stale responses if the user switched segment meanwhile
+            if (segment !== _cohortSegment) return;
 
             _cohortData = data;
             buildCohortTable(data, _cohortView);
             updateCohortSummary(data);
 
         } catch(e) {
+            if (segment !== _cohortSegment) return;
+            _cohortData = null;
             container.innerHTML = `<div style="padding:3rem;text-align:center;color:var(--accent-red);">⚠️ Failed to load cohort data: ${e.message}</div>`;
             console.error('Cohort analysis error:', e);
+        } finally {
+            if (segment === _cohortSegment) {
+                container.classList.remove('is-loading');
+                if (toggle) toggle.classList.remove('is-loading');
+            }
         }
     }
+
+    // Customer segment toggle (All / New / Repeat)
+    document.querySelectorAll('.cohort-segment-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const segment = btn.getAttribute('data-segment');
+            if (segment === _cohortSegment) return;
+            _cohortSegment = segment;
+
+            const toggle = document.getElementById('cohortSegmentToggle');
+            toggle.setAttribute('data-segment', segment);
+            toggle.style.setProperty('--seg-idx', btn.getAttribute('data-idx'));
+            document.querySelectorAll('.cohort-segment-btn').forEach(b => {
+                const on = b === btn;
+                b.classList.toggle('active', on);
+                b.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+
+            const note = document.getElementById('cohortSegmentNote');
+            if (note) note.innerHTML = COHORT_SEGMENT_NOTES[segment] || '';
+
+            fetchCohortAnalysis(segment);
+        });
+    });
 
     // View-mode toggle buttons
     document.querySelectorAll('.cohort-view-btn').forEach(btn => {
