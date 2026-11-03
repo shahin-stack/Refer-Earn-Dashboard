@@ -4,29 +4,80 @@ document.addEventListener('DOMContentLoaded', async function () {
     // Store latest data for Excel export
     let currentStats = null;
 
+    // Request counters & range tracking for Overview panels (Core / Repeat / New)
+    let coreReqId = 0;
+    let repeatReqId = 0;
+    let newCustReqId = 0;
+    let coreLoadedRange = null;
+    let repeatLoadedRange = null;
+    let newCustLoadedRange = null;
+
+    function rangeKey(start, end) {
+        return (start && end) ? `${start}|${end}` : '|';
+    }
+
+    function syncCoreDatesToSegments(start, end, fetchSegments = false) {
+        const rcFromEl = document.getElementById('rcFrom');
+        const rcToEl   = document.getElementById('rcTo');
+        const ncFromEl = document.getElementById('ncFrom');
+        const ncToEl   = document.getElementById('ncTo');
+        if (rcFromEl) rcFromEl.value = start;
+        if (rcToEl)   rcToEl.value   = end;
+        if (ncFromEl) ncFromEl.value = start;
+        if (ncToEl)   ncToEl.value   = end;
+        if (fetchSegments) {
+            fetchRepeatCustomerMetrics(start, end);
+            fetchNewCustomerMetrics(start, end);
+        }
+    }
+
     // Initial load
     updateDashboard();
 
-    // ── Overview section filter ───────────────────────────────────────────────
+    // ── Overview section filter (mirrors to Repeat & New Customer Metrics) ────
+    document.getElementById('overviewFrom')?.addEventListener('change', (ev) => {
+        const val = ev.target.value;
+        const rcFromEl = document.getElementById('rcFrom');
+        const ncFromEl = document.getElementById('ncFrom');
+        if (rcFromEl) rcFromEl.value = val;
+        if (ncFromEl) ncFromEl.value = val;
+    });
+    document.getElementById('overviewTo')?.addEventListener('change', (ev) => {
+        const val = ev.target.value;
+        const rcToEl = document.getElementById('rcTo');
+        const ncToEl = document.getElementById('ncTo');
+        if (rcToEl) rcToEl.value = val;
+        if (ncToEl) ncToEl.value = val;
+    });
+
     document.getElementById('overviewApplyFilter')?.addEventListener('click', () => {
         const s = document.getElementById('overviewFrom').value;
         const e = document.getElementById('overviewTo').value;
+        if ((s && !e) || (!s && e)) {
+            alert('Please select both From and To dates.');
+            return;
+        }
         updateDashboard(s, e);
+        syncCoreDatesToSegments(s, e, true);
     });
     document.getElementById('overviewClearFilter')?.addEventListener('click', () => {
         document.getElementById('overviewFrom').value = '';
         document.getElementById('overviewTo').value   = '';
         updateDashboard('', '');
+        syncCoreDatesToSegments('', '', true);
     });
 
     async function updateDashboard(start = '', end = '') {
+        const reqId = ++coreReqId;
+        coreLoadedRange = rangeKey(start, end);
 
         document.body.style.cursor = 'wait';
 
-        // Show loading state on all core metric cards
-        document.querySelectorAll('.metric-card .card-value').forEach(el => {
+        // Show loading state on core metric cards only (do not touch Repeat / New panels)
+        document.querySelectorAll('#coreMetricsPanel .metric-card .card-value').forEach(el => {
             el.textContent = '…';
             el.style.opacity = '0.4';
+            el.style.color = '';
         });
         const progressFill = document.getElementById('discountProgressBar');
         if (progressFill) progressFill.style.width = '0%';
@@ -34,10 +85,12 @@ document.addEventListener('DOMContentLoaded', async function () {
         try {
             const response = await fetch(`/api/dashboard?start=${start}&end=${end}`);
             const data     = await response.json();
+            if (reqId !== coreReqId) return;
 
             if (!data || data.error) {
+                coreLoadedRange = null;
                 console.error('API error:', data ? data.error : 'no data');
-                document.querySelectorAll('.metric-card .card-value').forEach(el => {
+                document.querySelectorAll('#coreMetricsPanel .metric-card .card-value').forEach(el => {
                     el.textContent = 'Error';
                     el.style.opacity = '1';
                     el.style.color = '#ef4444';
@@ -125,30 +178,34 @@ document.addEventListener('DOMContentLoaded', async function () {
 
             animateCards();
             // Restore card opacity after loading
-            document.querySelectorAll('.metric-card .card-value').forEach(el => {
+            document.querySelectorAll('#coreMetricsPanel .metric-card .card-value').forEach(el => {
                 el.style.opacity = '1';
             });
             await fetchCustomerTrend(start, end);
         } catch (err) {
+            if (reqId !== coreReqId) return;
+            coreLoadedRange = null;
             console.error('Failed to fetch dashboard metrics:', err);
-            document.querySelectorAll('.metric-card .card-value').forEach(el => {
+            document.querySelectorAll('#coreMetricsPanel .metric-card .card-value').forEach(el => {
                 el.textContent = 'Error';
                 el.style.opacity = '1';
                 el.style.color = '#ef4444';
             });
         } finally {
-            document.body.style.cursor = 'default';
+            if (reqId === coreReqId) {
+                document.body.style.cursor = 'default';
+            }
         }
     }
 
     // Set nth metric card value
     function setCard(n, value) {
-        const el = document.querySelector(`.metric-card:nth-child(${n}) .card-value`);
+        const el = document.querySelector(`#coreMetricsPanel .metric-card:nth-child(${n}) .card-value`);
         if (el) el.textContent = value;
     }
 
     function animateCards() {
-        document.querySelectorAll('.metric-card').forEach((card, i) => {
+        document.querySelectorAll('#coreMetricsPanel .metric-card').forEach((card, i) => {
             card.style.opacity   = '0';
             card.style.transform = 'translateY(15px)';
             setTimeout(() => {
@@ -160,11 +217,31 @@ document.addEventListener('DOMContentLoaded', async function () {
     }
 
     async function fetchNewCustomerMetrics(start = '', end = '') {
+        const reqId = ++newCustReqId;
+        newCustLoadedRange = rangeKey(start, end);
+
+        document.querySelectorAll('#newMetricsPanel .nc-card .card-value').forEach(el => {
+            el.textContent = '…';
+            el.style.opacity = '0.4';
+            el.style.color = '';
+        });
+        const ncBarReset = document.getElementById('nc-discountProgressBar');
+        if (ncBarReset) ncBarReset.style.width = '0%';
+
         try {
             const response = await fetch(`/api/new-customer-metrics?start=${start}&end=${end}`);
             const data = await response.json();
+            if (reqId !== newCustReqId) return;
             
-            if (!data || data.error) return;
+            if (!data || data.error) {
+                newCustLoadedRange = null;
+                document.querySelectorAll('#newMetricsPanel .nc-card .card-value').forEach(el => {
+                    el.textContent = 'Error';
+                    el.style.opacity = '1';
+                    el.style.color = '#ef4444';
+                });
+                return;
+            }
             
             const master = data.master_stats;
             const stats  = data.range_stats;
@@ -217,6 +294,9 @@ document.addEventListener('DOMContentLoaded', async function () {
             const ncAvgR = document.getElementById('nc-cardAvgRedemption');
             if (ncAvgR) ncAvgR.textContent = toIndian(stats.avg_loyalty_redemption);
             
+            document.querySelectorAll('#newMetricsPanel .nc-card .card-value').forEach(el => {
+                el.style.opacity = '1';
+            });
             document.querySelectorAll('.nc-card').forEach((card, i) => {
                 card.style.opacity = '0';
                 card.style.transform = 'translateY(15px)';
@@ -262,16 +342,43 @@ document.addEventListener('DOMContentLoaded', async function () {
             }
             
         } catch(e) {
+            if (reqId !== newCustReqId) return;
+            newCustLoadedRange = null;
             console.error('Failed to fetch new customer metrics:', e);
+            document.querySelectorAll('#newMetricsPanel .nc-card .card-value').forEach(el => {
+                el.textContent = 'Error';
+                el.style.opacity = '1';
+                el.style.color = '#ef4444';
+            });
         }
     }
 
     async function fetchRepeatCustomerMetrics(start = '', end = '') {
+        const reqId = ++repeatReqId;
+        repeatLoadedRange = rangeKey(start, end);
+
+        document.querySelectorAll('#repeatMetricsPanel .rc-card .card-value').forEach(el => {
+            el.textContent = '…';
+            el.style.opacity = '0.4';
+            el.style.color = '';
+        });
+        const rcBarReset = document.getElementById('rc-discountProgressBar');
+        if (rcBarReset) rcBarReset.style.width = '0%';
+
         try {
             const response = await fetch(`/api/repeat-customer-metrics?start=${start}&end=${end}`);
             const data = await response.json();
+            if (reqId !== repeatReqId) return;
             
-            if (!data || data.error) return;
+            if (!data || data.error) {
+                repeatLoadedRange = null;
+                document.querySelectorAll('#repeatMetricsPanel .rc-card .card-value').forEach(el => {
+                    el.textContent = 'Error';
+                    el.style.opacity = '1';
+                    el.style.color = '#ef4444';
+                });
+                return;
+            }
             
             const master = data.master_stats;
             const stats  = data.range_stats;
@@ -323,6 +430,9 @@ document.addEventListener('DOMContentLoaded', async function () {
             const rcAvgR = document.getElementById('rc-cardAvgRedemption');
             if (rcAvgR) rcAvgR.textContent = toIndian(stats.avg_loyalty_redemption);
             
+            document.querySelectorAll('#repeatMetricsPanel .rc-card .card-value').forEach(el => {
+                el.style.opacity = '1';
+            });
             document.querySelectorAll('.rc-card').forEach((card, i) => {
                 card.style.opacity = '0';
                 card.style.transform = 'translateY(15px)';
@@ -368,7 +478,14 @@ document.addEventListener('DOMContentLoaded', async function () {
             }
             
         } catch(e) {
+            if (reqId !== repeatReqId) return;
+            repeatLoadedRange = null;
             console.error('Failed to fetch repeat customer metrics:', e);
+            document.querySelectorAll('#repeatMetricsPanel .rc-card .card-value').forEach(el => {
+                el.textContent = 'Error';
+                el.style.opacity = '1';
+                el.style.color = '#ef4444';
+            });
         }
     }
     // ─── Customer Trend Chart ──────────────────────────────────────────────
@@ -1096,8 +1213,8 @@ document.addEventListener('DOMContentLoaded', async function () {
 
             // 3. If Overview is clicked, always default to Core Performance tab
             if (targetId === 'overviewSection') {
-                document.querySelectorAll('.overview-tab-btn').forEach(b => b.classList.remove('active'));
-                document.querySelectorAll('.overview-panel').forEach(p => p.classList.remove('active-overview-panel'));
+                document.querySelectorAll('[data-overview-target]').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('#overviewSection .overview-panel').forEach(p => p.classList.remove('active-overview-panel'));
                 const coreBtn   = document.getElementById('coreMetricsTab');
                 const corePanel = document.getElementById('coreMetricsPanel');
                 if (coreBtn)   coreBtn.classList.add('active');
@@ -1510,28 +1627,53 @@ document.addEventListener('DOMContentLoaded', async function () {
     });
 
     // ─── Overview Sub-Tab Switching ───────────────────────────────────────────
-    let repeatLoaded = false;
-    let newCustLoaded = false;
-    document.querySelectorAll('.overview-tab-btn').forEach(btn => {
+    document.querySelectorAll('[data-overview-target]').forEach(btn => {
         btn.addEventListener('click', () => {
-            // Update active button
-            document.querySelectorAll('.overview-tab-btn').forEach(b => b.classList.remove('active'));
+            // Update active button within Overview only
+            document.querySelectorAll('[data-overview-target]').forEach(b => b.classList.remove('active'));
             btn.classList.add('active');
 
-            // Hide all panels, show target
-            document.querySelectorAll('.overview-panel').forEach(p => p.classList.remove('active-overview-panel'));
+            // Hide all Overview panels, show target
+            document.querySelectorAll('#overviewSection .overview-panel').forEach(p => p.classList.remove('active-overview-panel'));
             const targetId = btn.getAttribute('data-overview-target');
             const targetPanel = document.getElementById(targetId);
             if (targetPanel) targetPanel.classList.add('active-overview-panel');
 
-            // Lazy-load repeat/new metrics on first switch
-            if (targetId === 'repeatMetricsPanel' && !repeatLoaded) {
-                repeatLoaded = true;
-                fetchRepeatCustomerMetrics();
+            // Keep Core / Repeat / New in sync with the active date inputs & resize hidden charts
+            if (targetId === 'coreMetricsPanel') {
+                const ovS = document.getElementById('overviewFrom')?.value || '';
+                const ovE = document.getElementById('overviewTo')?.value   || '';
+                if ((ovS && ovE) || (!ovS && !ovE)) {
+                    const effKey = rangeKey(ovS, ovE);
+                    if (coreLoadedRange !== effKey) {
+                        updateDashboard(ovS, ovE);
+                    }
+                }
+                requestAnimationFrame(() => customerTrendChartInstance?.resize());
             }
-            if (targetId === 'newMetricsPanel' && !newCustLoaded) {
-                newCustLoaded = true;
-                fetchNewCustomerMetrics();
+            if (targetId === 'repeatMetricsPanel') {
+                const rcS = document.getElementById('rcFrom')?.value || '';
+                const rcE = document.getElementById('rcTo')?.value   || '';
+                const useRange = !!(rcS && rcE);
+                const effS = useRange ? rcS : '';
+                const effE = useRange ? rcE : '';
+                if (repeatLoadedRange !== rangeKey(effS, effE)) {
+                    fetchRepeatCustomerMetrics(effS, effE);
+                } else {
+                    requestAnimationFrame(() => window._repeatTrendChartInst?.resize());
+                }
+            }
+            if (targetId === 'newMetricsPanel') {
+                const ncS = document.getElementById('ncFrom')?.value || '';
+                const ncE = document.getElementById('ncTo')?.value   || '';
+                const useRange = !!(ncS && ncE);
+                const effS = useRange ? ncS : '';
+                const effE = useRange ? ncE : '';
+                if (newCustLoadedRange !== rangeKey(effS, effE)) {
+                    fetchNewCustomerMetrics(effS, effE);
+                } else {
+                    requestAnimationFrame(() => window._newTrendChartInst?.resize());
+                }
             }
         });
     });
